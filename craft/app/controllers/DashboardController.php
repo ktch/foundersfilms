@@ -114,6 +114,8 @@ class DashboardController extends BaseController
 		$this->requirePostRequest();
 		$this->requireAjaxRequest();
 
+		craft()->config->maxPowerCaptain();
+
 		$getHelpModel = new GetHelpModel();
 		$getHelpModel->fromEmail = craft()->request->getPost('fromEmail');
 		$getHelpModel->message = craft()->request->getPost('message');
@@ -181,7 +183,7 @@ class DashboardController extends BaseController
 					$requestParams['File1_bFileBody'] = base64_encode(IOHelper::getFileContents($tempZipFile));
 
 					// Bump the default timeout because of the attachment.
-					$hsParams['callTimeout'] = 60;
+					$hsParams['callTimeout'] = 120;
 				}
 			}
 			catch(\Exception $e)
