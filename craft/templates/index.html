@@ -1,1 +1,66 @@
 {% extends '_layout' %}
+
+{% block main %}
+	
+	
+		<div id="series">
+			<div class="container">
+			
+			<div class="sixteen columns">
+				<h4>- Series</h4>
+				<p>{{ home.intro }}</p>
+			</div>
+			
+			{% for entry in craft.entries.section(series).find() %}
+			
+				<div class="eight columns">
+					
+					   	<h3><a href="{{ entry.url }}">{{ entry }}</a></h3>
+					   	<!-- {{ entry.video.description }} -->
+						<iframe src="//www.youtube.com/embed/{{ entry.video }}" frameborder="0" allowfullscreen></iframe>
+							
+						<blockquote>{{ entry.pullQuote }}</blockquote>
+						
+								
+						<p>{{ entry.body | striptags | truncate('words', '25', ' ...') }}<a class="continue" href="{{ entry.url }}"> continue reading→</a></p>
+					
+				</div>
+			{% endfor %}
+				
+				<div class="clear"></div>
+				
+				
+				
+			</div> <!-- end container -->
+		</div> <!-- work -->
+		
+		<div id="documentary">
+			<div class="container">
+				<div class="sixteen columns">
+					<h4>- Documentary</h4>
+					{{ home.docDescription }}
+				</div>
+			</div>
+		</div>
+		
+		<div id="about">
+			<div class="container">
+				<div class="sixteen columns">
+					<h4>- About Us</h4>
+					{{ home.aboutDescription }}
+				</div> <!-- end sixteen columns -->			
+			</div> <!-- end container -->
+		</div> <!-- end about -->
+		
+		<div id="sponsor">
+			<div class="container">
+				<div class="sixteen columns">
+					<h4>- Sponsor</h4>
+					{{ home.sponsorDescription }}
+				</div> <!-- end sixteen columns -->			
+			</div> <!-- end container -->
+		</div> <!-- end sponsor -->
+		
+		
+	
+	{% endblock %}

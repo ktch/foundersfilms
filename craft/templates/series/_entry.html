@@ -1,0 +1,30 @@
+{% extends '_layout' %}
+
+{% block main %}
+	
+	
+		<div id="series">
+			<div class="container">
+			
+				<div class="sixteen columns">
+					
+					   	<h3><a href="{{ entry.url }}">{{ entry }}</a></h3>
+					   	<!-- {{ entry.video.description }} -->
+						<iframe src="//www.youtube.com/embed/{{ entry.video }}" frameborder="0" allowfullscreen></iframe>
+							
+						<blockquote>{{ entry.pullQuote }}</blockquote>
+						
+								
+						<p>{{ entry.body }}</p>
+					
+				</div>
+				
+				<div class="clear"></div>
+				
+				
+				
+			</div> <!-- end container -->
+		</div> <!-- work -->
+		
+	
+	{% endblock %}
