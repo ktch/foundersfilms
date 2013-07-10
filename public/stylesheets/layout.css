@@ -28,6 +28,11 @@
 
 * {
 	font-family: 'Oswald';
+	color:#444;
+}
+
+body {
+	background: #eee;
 }
 
 a {
@@ -92,7 +97,6 @@ h3.white {
 h4 {
 	font-family: 'Muli', sans-serif;
 	font-size: 20px;
-	margin-left: -15px;
 	font-weight: 900;
 	color: #434343;
 }
@@ -219,10 +223,6 @@ input::-moz-focus-inner {
 /* #Separators
 ================================================== */
 
-div.inview {
-	background: #fff;
-}
-
 p.separator {
 	font-size: 30px;
 	/*font-weight: 600;*/
@@ -243,7 +243,6 @@ p.separator {
 }
 
 #separator1 .bg2 {
-	background: #fff;
 	margin: 0 auto;
 	padding: 0;
 	position: absolute;
@@ -259,7 +258,6 @@ p.separator {
 }
 
 #separator2 .bg3 {
-	background: #fff;
 	margin: 0 auto;
 	padding: 0;
 	position: absolute;
@@ -275,7 +273,6 @@ p.separator {
 }
 
 #separator3 .bg4 {
-	background: #fff;
 	margin: 0 auto;
 	padding: 0;
 	position: absolute;
@@ -291,11 +288,12 @@ p.separator {
 
 img.logo {
 	margin: 0 auto;
-	max-width:200px;
+	padding: 15px;
+	max-width:180px;
 }
 
 nav {
-	background: rgba(255,255,255,.9);
+	background: rgba(238,238,238,.8);
 	width: 100%;
 	position: relative;
 	z-index: 1000;
@@ -350,7 +348,6 @@ nav a:hover {
 }
 
 #intro .bg1 {
-	background: #fff;	
 	margin: 0 auto;
 	padding: 0;
 	position: absolute;
@@ -408,7 +405,6 @@ nav a:hover {
 ================================================== */
 
 #series {
-	background: #fff;
 	position: relative;
 	z-index: 300;
 	padding-top: 20px;
@@ -540,7 +536,6 @@ span.p-small {
 ================================================== */
 
 #about {
-	background: #fff;
 	position: relative;
 	z-index: 300;
 	padding-top: 40px;
@@ -793,7 +788,7 @@ nav select {
 		display: inline-block;
 		position: relative;
 		margin-top: 8px;
-		color: #000;
+		color: #444;
 	}
 }
 
