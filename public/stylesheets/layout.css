@@ -36,12 +36,19 @@ body {
 }
 
 a {
+	font-weight: 700;
 	text-decoration: none;
 	display: inline-block;
 }
 
 a.continue {
-	font-weight: 700;
+	background: #9F8BF4;
+	padding: 5px 10px;
+	color:white;
+}
+
+a.continue:hover {
+	background: #471BF4;
 }
 
 h1, h2, h3 {
@@ -65,13 +72,13 @@ h1.small {
 }
 
 h2 {
-	font-size: 60px;
+	font-size: 40px;
 	font-weight: 700;
 	color: #434343;
 	text-transform: uppercase;
 	text-align: center;
-	margin-top: 90px;
-	margin-bottom: 80px;
+	margin-top: 30px;
+	margin-bottom: 30px;
 }
 
 h2.white {
@@ -121,8 +128,27 @@ p {
 	color: #e1e1e1;
 }
 
+img.mattterrell {
+	float: right;
+	width: 150px;
+	margin-left: 20px;
+	margin-bottom: 20px;
+}
 
+img.csclogo {
+	float: right;
+	width: 300px;
+	margin-left: 20px;
+	margin-top: 40px;
+}
 
+#sponsor {
+	margin-bottom: 25px;
+}
+
+img {
+	max-width: 100%;
+}
 /* #Buttons
 ================================================== */
 

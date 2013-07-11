@@ -1,0 +1,45 @@
+{% extends '_layout' %}
+
+{% block nav %}
+    {% include 'nav' %}
+{% endblock %}
+
+{% block main %}
+		
+		<div id="about">
+			<div class="container">
+				<div class="sixteen columns">
+					<h4>About Us</h4>
+					<img src="/mattterrell.png" alt="Matt Terrell" class="mattterrell">
+					{{ home.aboutDescription }}
+				</div> <!-- end sixteen columns -->			
+			</div> <!-- end container -->
+		</div> <!-- end about -->
+		
+		<div id="links">
+			<div class="container">
+				<div class="sixteen columns">
+					<h4>People Who Inspire Us</h4>
+					<ul>
+					{% for link in about.links %}
+					    <li><a href="{{ link.linkUrl }}">{{ link.linkText }}→</a><br>{{ link.linkDescription }}</li>
+					{% endfor %}
+					</ul>
+				</div>
+			</div>
+		</div>
+		
+		<div id="contact">
+			<div class="container">
+				<div class="sixteen columns">
+					<h4>Contact Us</h4>
+					{{ about.contact }}
+				</div>
+			</div>
+		</div>
+		
+		{% include 'sponsorsnippet' %}
+		
+		
+	
+	{% endblock %}

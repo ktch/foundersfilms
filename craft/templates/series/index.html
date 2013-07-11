@@ -1,0 +1,43 @@
+{% extends '_layout' %}
+
+{% block nav %}
+    {% include 'nav' %}
+{% endblock %}
+
+{% block main %}
+	
+	
+		<div id="series">
+			<div class="container">
+
+			{% for entry in craft.entries.section(series).find() %}
+			
+				<div class="eight columns">
+					
+					   	<h3><a href="{{ entry.url }}">{{ entry }}</a></h3>
+					   	<!-- {{ entry.video.description }} -->
+						<iframe src="//www.youtube.com/embed/{{ entry.video }}" frameborder="0" allowfullscreen></iframe>
+							
+						<blockquote>{{ entry.pullQuote }}</blockquote>
+						
+								
+						<p>{{ entry.body | striptags | truncate('words', '25', ' ...') }}<a href="{{ entry.url }}"> continue reading→</a></p>
+					
+				</div>
+			{% endfor %}
+				
+				<div class="clear"></div>
+				
+				
+				
+			</div> <!-- end container -->
+		</div> <!-- work -->
+		
+		<!-- <div class="container">
+		<div class="sixteen columns"> <p> PHP</p><div class="skill-bg"><div style="width: 63%;background-color: #D1D1D1" class="skill1"></div></div> <p> Javascript</p><div class="skill-bg"><div style="width: 72%;background-color: #C8C7C7" class="skill4"></div></div> <p> Illustrator</p><div class="skill-bg"><div style="width: 77%;background-color: #BDBDBD" class="skill3"></div></div> <p> HTML/CSS</p><div class="skill-bg"><div style="width: 85%;background-color: #B3B2B2" class="skill3"></div></div> <p> Photoshop</p><div class="skill-bg"><div style="width: 90%;background-color: #A9A8A8" class="skill5"></div></div> </div></div> -->
+		
+		{% include 'sponsorsnippet' %}
+		
+		
+	
+	{% endblock %}

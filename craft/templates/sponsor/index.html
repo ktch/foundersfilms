@@ -1,0 +1,17 @@
+{% extends '_layout' %}
+
+{% block nav %}
+    {% include 'nav' %}
+{% endblock %}
+
+{% block main %}
+    <div id="sponsor">
+			<div class="container">
+				<div class="sixteen columns">
+					<h4>Sponsor</h4>
+					{{ home.sponsorDescription }}
+					<a href="http://incorporate.com"><img src="/csclogo.png"></a>
+				</div> <!-- end sixteen columns -->	
+			</div> <!-- end container -->
+		</div> <!-- end sponsor -->
+{% endblock %}

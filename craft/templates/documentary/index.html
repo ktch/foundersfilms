@@ -1,0 +1,53 @@
+{% extends '_layout' %}
+
+{% block nav %}
+    {% include 'nav' %}
+{% endblock %}
+
+{% block main %}
+	
+		
+		<div id="documentary">
+			<div class="container">
+				<div class="sixteen columns">
+					<h2>The Documentary</h2>
+					{{ documentary.docOpen }}
+				</div>
+			</div>
+		</div>
+		
+		<div class="crew">
+			
+				<div class="container"><div class="sixteen columns">
+									<h3>The Team</h3>
+									{{ documentary.docTeam }}
+								</div> <!-- end sixteen columns --></div>
+			
+				
+				
+			</div> <!-- end team -->
+			
+			<div class="clear"></div>
+				
+			<div class="plan">
+			
+				<div class="container"><div class="sixteen columns">
+									<h3>The Plan</h3>
+									{{ documentary.docPlan }}
+								</div> <!-- end sixteen columns --></div>
+			
+				
+				
+			</div> <!-- end plan -->
+		
+			<div class="clear"></div>
+
+			<div class="close">
+				<div class="container"><div class="sixteen columns">
+									<h3>Get Involved</h3>
+									{{ documentary.docClose }}
+								</div></div>
+			</div>
+		
+	
+	{% endblock %}
