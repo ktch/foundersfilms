@@ -14,15 +14,13 @@
 			
 				<div class="eight columns">
 					
-					   	<h3><a href="{{ entry.url }}">{{ entry }}</a></h3>
+          <a href="{{ entry.url }}"><h3>{{ entry }}</h3>
 					   	<!-- {{ entry.video.description }} -->
-						<iframe src="//www.youtube.com/embed/{{ entry.video }}" frameborder="0" allowfullscreen></iframe>
+              <img src="http://img.youtube.com/vi/{{ entry.video }}/maxresdefault.jpg" frameborder="0" allowfullscreen />
 							
-						<blockquote>{{ entry.pullQuote }}</blockquote>
-						
+            </a>		
 								
 						<p>{{ entry.body | striptags | truncate('words', '25', ' ...') }}<a href="{{ entry.url }}"> continue reading→</a></p>
-					
 				</div>
 			{% endfor %}
 				
