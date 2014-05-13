@@ -83,8 +83,8 @@
 	small { font-size: 80%; }
 
 /*	Blockquotes  */
-	blockquote, blockquote p { text-align: right;font-size: 17px; line-height: 24px; color: #777; font-style: italic; }
-	blockquote { margin: 0 0 20px; padding: 9px 20px 0 19px;}
+	blockquote, blockquote p { text-align: left;font-size: 17px; line-height: 24px; color: #777; font-style: italic; }
+	blockquote { margin: 10px 0 5px; padding: 9px 10px 0 0px;}
 	blockquote cite { display: block; font-size: 12px; color: #555; }
 	blockquote cite:before { content: "\2014 \0020"; }
 	blockquote cite a, blockquote cite a:visited, blockquote cite a:visited { color: #555; }
