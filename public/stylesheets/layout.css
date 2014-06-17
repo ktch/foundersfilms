@@ -142,6 +142,11 @@ img.csclogo {
 	margin-top: 40px;
 }
 
+img.series-image {
+	max-width: 460px;
+	max-height: 259px;
+}
+
 #sponsor {
 	margin-bottom: 25px;
 }
