@@ -1,253 +1,225 @@
-/*!
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+/**
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
 (function($) {
 
 
-var ReleaseNotes = Garnish.Base.extend({
+Craft.UpdateInfo = Garnish.Base.extend(
+{
+	appUpdateInfo: null,
 
-	$table: null,
-	$tbody: null,
+	$container: null,
+	$downloadBtn: null,
 
-	init: function($td, releases, product)
+	licenseHud: null,
+	$licenseSubmitBtn: null,
+	licenseSubmitAction: null,
+
+	allowAutoUpdates: null,
+
+	init: function()
 	{
-		this.$table = $('<table/>').appendTo($td);
-		this.$tbody = $('<tbody/>').appendTo(this.$table);
+		var $graphic = $('#graphic'),
+			$status = $('#status');
 
-		this.addNoteRows(releases[0].notes);
-
-		for (var i = 1; i < releases.length; i++)
+		Craft.postActionRequest('update/getAvailableUpdates', $.proxy(function(response, textStatus)
 		{
-			var release = releases[i],
+			if (textStatus != 'success' || response.error || response.errors)
+			{
+				var error = Craft.t('An unknown error occurred.');
+
+				if (response.errors && response.errors.length)
+				{
+					error = response.errors[0];
+				}
+				else if (response.error)
+				{
+					error = response.error;
+				}
+
+				$graphic.addClass('error');
+				$status.text(error);
+			}
+			else
+			{
+				var info = {
+					total: (response.app && response.app.releases && response.app.releases.length ? 1 : 0),
+					critical: (response.app && response.criticalUpdateAvailable)
+				};
+
+				if (!info.total)
+				{
+					$graphic.addClass('success');
+					$status.text(Craft.t('You’re all up-to-date!'));
+				}
+				else
+				{
+					$graphic.velocity('fadeOut', { duration: 'fast' });
+					$status.fadeOut('fast', $.proxy(function()
+					{
+						$graphic.remove();
+						$status.remove();
+
+						this.appUpdateInfo = response.app;
+						this.allowAutoUpdates = response.allowAutoUpdates;
+
+						this.showAvailableUpdates();
+					}, this));
+				}
+
+				// Update the CP header badge
+				Craft.cp.displayUpdateInfo(info);
+			}
+		}, this));
+	},
+
+	showAvailableUpdates: function()
+	{
+		this.$container = $('<div/>').appendTo(Craft.cp.$main).hide();
+
+		var $headerPane = $('<div class="pane clearafter"/>').appendTo(this.$container),
+			$heading = $('<h2 class="heading">'+Craft.t('You’ve got updates!')+'</h2>').appendTo($headerPane),
+			$buttonContainer = $('<div class="buttons"/>').appendTo($headerPane);
+
+		// Is a manual update required?
+		var manualUpdateRequired = (!this.allowAutoUpdates || this.appUpdateInfo.manualUpdateRequired);
+
+		if (manualUpdateRequired)
+		{
+			this.$downloadBtn = $('<div class="btn submit">'+Craft.t('Download')+'</div>').appendTo($buttonContainer);
+		}
+		else
+		{
+			var $btnGroup = $('<div class="btngroup submit"/>').appendTo($buttonContainer),
+				$updateBtn = $('<div class="btn submit">'+Craft.t('Update')+'</div>').appendTo($btnGroup),
+				$menuBtn = $('<div class="btn submit menubtn"/>').appendTo($btnGroup),
+				$menu = $('<div class="menu" data-align="right"/>').appendTo($btnGroup),
+				$menuUl = $('<ul/>').appendTo($menu),
+				$downloadLi = $('<li/>').appendTo($menuUl);
+
+			this.$downloadBtn = $('<a>'+Craft.t('Download')+'</a>').appendTo($downloadLi);
+
+			new Garnish.MenuBtn($menuBtn);
+		}
+
+		// Has the license been updated?
+		if (this.appUpdateInfo.licenseUpdated)
+		{
+			this.addListener(this.$downloadBtn, 'click', 'showLicenseForm');
+
+			if (!manualUpdateRequired)
+			{
+				this.addListener($updateBtn, 'click', 'showLicenseForm');
+			}
+		}
+		else
+		{
+			this.addListener(this.$downloadBtn, 'click', 'downloadThat');
+
+			if (!manualUpdateRequired)
+			{
+				this.addListener($updateBtn, 'click', 'autoUpdateThat');
+			}
+		}
+
+		this.showReleases(this.appUpdateInfo.releases, 'Craft');
+		this.$container.velocity('fadeIn', { duration: 'fast' });
+	},
+
+	showLicenseForm: function(originalEvent)
+	{
+		originalEvent.stopPropagation();
+
+		if (!this.licenseHud)
+		{
+			var $form = $('<form><p>'+Craft.t('Craft’s <a href="http://buildwithcraft.com/license" target="_blank">Terms and Conditions</a> have changed.')+'</p></form>'),
+				$label = $('<label> '+Craft.t('I agree.')+' &nbsp;</label>').appendTo($form),
+				$checkbox = $('<input type="checkbox"/>').prependTo($label);
+
+			this.$licenseSubmitBtn = $('<input class="btn submit" type="submit"/>').appendTo($form);
+
+			this.licenseHud = new Garnish.HUD(originalEvent.currentTarget, $form);
+
+			this.addListener($form, 'submit', function(ev)
+			{
+				ev.preventDefault();
+
+				if ($checkbox.prop('checked'))
+				{
+					this.licenseSubmitAction();
+					this.licenseHud.hide();
+					$checkbox.prop('checked', false);
+				}
+				else
+				{
+					Garnish.shake(this.licenseHud.$hud);
+				}
+			});
+		}
+		else
+		{
+			this.licenseHud.$trigger = $(originalEvent.currentTarget);
+			this.licenseHud.show();
+		}
+
+		if (originalEvent.currentTarget == this.$downloadBtn[0])
+		{
+			this.$licenseSubmitBtn.attr('value', Craft.t('Seriously, download.'));
+			this.licenseSubmitAction = this.downloadThat;
+		}
+		else
+		{
+			this.$licenseSubmitBtn.attr('value', Craft.t('Seriously, update.'));
+			this.licenseSubmitAction = this.autoUpdateThat;
+		}
+	},
+
+	showReleases: function(releases, product)
+	{
+		for (var i = 0; i < releases.length; i++)
+		{
+			var $releasePane = $('<div class="pane release"/>').appendTo(this.$container),
+				release = releases[i],
 				heading = product+' '+release.version;
 
 			if (release.build)
 			{
 				heading += ' <span class="light">' +
 					Craft.t('build {build}', { build: release.build }) +
+					' - ' + release.localizedDate +
 					'</span>';
 			}
 
-			$('<tr><th colspan="2">'+heading+'</th></tr>').appendTo(this.$tbody);
+			if (release.critical)
+			{
+				heading += ' <span class="critical">'+Craft.t('Critical')+'</span>'
+			}
 
-			this.addNoteRows(release.notes);
+			$('<h2>'+heading+'</h2>').appendTo($releasePane);
+			$('<div class="notes"/>').appendTo($releasePane).html(release.notes);
 		}
 	},
 
-	addNoteRows: function(notes)
+	downloadThat: function()
 	{
-		notes = notes.split(/[\r\n]+/);
+		var src = this.appUpdateInfo.manualDownloadEndpoint;
 
-		for (var i = 0; i < notes.length; i++)
-		{
-			var note = notes[i],
-				$tr = $('<tr/>').appendTo(this.$tbody),
-				match = note.match(/\[(\w+)\]\s*(.+)/);
-
-			if (match)
-			{
-				$('<td class="thin"><span class="category '+match[1].toLowerCase()+'">'+Craft.t(match[1])+'</span></td>').appendTo($tr);
-				$('<td>'+match[2]+'</td>').appendTo($tr);
-			}
-			else
-			{
-				$('<td colspan="2">'+note+'</td>').appendTo($tr);
-			}
+		if (window.location.protocol == 'https:') {
+			src = src.replace('http:', 'https:');
 		}
+
+		$('<iframe/>', { src: src }).appendTo(Garnish.$bod).hide();
+	},
+
+	autoUpdateThat: function()
+	{
+		window.location.href = Craft.getUrl('updates/go/craft');
 	}
 });
-
-var atLeastOnePluginHasARelease = function(plugins)
-{
-	for (var i in plugins)
-	{
-		var plugin = plugins[i];
-
-		if (plugin.releases && plugin.releases.length > 0)
-		{
-			return true;
-		}
-	}
-
-	return false;
-};
-
-Craft.postActionRequest('update/getAvailableUpdates', function(response) {
-
-	$('#loading').fadeOut('fast', function()
-	{
-		if (!response.errors && response.error)
-		{
-			response.errors = [response.error];
-		}
-
-		if (response.errors && response.errors.length > 0)
-		{
-			var $div = $('#update-error');
-
-			$div.html(response.errors[0]);
-			$div.show();
-		}
-		else
-		{
-			if ((response.app && response.app.releases && response.app.releases.length))
-			{
-				var $table = $('#system-updates'),
-					$tbody = $table.children('tbody');
-
-				$table.show();
-
-				if (response.app.releases)
-				{
-					var $tr = $('<tr/>').appendTo($tbody),
-						$th = $('<th/>').appendTo($tr),
-						$td = $('<td class="thin rightalign"/>').appendTo($tr);
-
-					$th.html('Craft '+response.app.releases[0].version +
-						' <span class="light">' +
-						Craft.t('build {build}', { build: response.app.releases[0].build }) +
-						'</span>' +
-						(response.app.criticalUpdateAvailable ? '<span class="critical">'+Craft.t('Critical')+'</span>' : '')
-					);
-
-					var downloadThat = function() {
-						var src = response.app.manualDownloadEndpoint;
-						$('<iframe/>', { src: src }).appendTo(Garnish.$bod).hide();
-					};
-
-					var autoUpdateThat = function() {
-						document.location.href = Craft.getUrl('updates/go/craft');
-					};
-
-					// Is a manual update required?
-					if (response.app.manualUpdateRequired)
-					{
-						var $downloadBtn = $('<div class="btn submit">'+Craft.t('Download')+'</div>').appendTo($td);
-					}
-					else
-					{
-						var $btnGroup = $('<div class="btngroup"/>').appendTo($td),
-							$updateBtn = $('<div class="btn submit">'+Craft.t('Update')+'</div>').appendTo($btnGroup),
-							$menuBtn = $('<div class="btn submit menubtn"/>').appendTo($btnGroup),
-							$menu = $('<div class="menu" data-align="right"/>').appendTo($btnGroup),
-							$menuUl = $('<ul/>').appendTo($menu),
-							$downloadLi = $('<li/>').appendTo($menuUl),
-							$downloadBtn = $('<a>'+Craft.t('Download')+'</a>').appendTo($downloadLi);
-
-						new Garnish.MenuBtn($menuBtn);
-					}
-
-					// Has the license been updated?
-					if (response.app.licenseUpdated)
-					{
-						var hud, $form, $submitBtn, $label, $checkbox, doThat;
-						var showLicenseForm = function(originalEvent)
-						{
-							originalEvent.stopPropagation();
-
-							if (!hud)
-							{
-								$form = $('<form><p>'+Craft.t('Craft’s <a href="http://buildwithcraft.com/license" target="_blank">Terms and Conditions</a> have changed.')+'</p></form>');
-								$label = $('<label> '+Craft.t('I agree.')+' &nbsp;</label>').appendTo($form);
-								$checkbox = $('<input type="checkbox"/>').prependTo($label);
-								$submitBtn = $('<input class="btn submit" type="submit"/>').appendTo($form);
-
-								hud = new Garnish.HUD(originalEvent.currentTarget, $form, {
-									hudClass: 'hud',
-									triggerSpacing: 20,
-									tipWidth: 30
-								});
-
-								$form.on('submit', function(ev) {
-									ev.preventDefault();
-
-									if ($checkbox.prop('checked'))
-									{
-										doThat();
-										hud.hide();
-										$checkbox.prop('checked', false);
-									}
-									else
-									{
-										Garnish.shake(hud.$hud);
-									}
-								});
-							}
-							else
-							{
-								hud.$trigger = $(originalEvent.currentTarget);
-								hud.show();
-							}
-
-							if (originalEvent.currentTarget == $downloadBtn[0])
-							{
-								$submitBtn.attr('value', Craft.t('Seriously, download.'));
-								doThat = downloadThat;
-							}
-							else
-							{
-								$submitBtn.attr('value', Craft.t('Seriously, update.'));
-								doThat = autoUpdateThat;
-							}
-						};
-
-						$downloadBtn.on('click', showLicenseForm);
-
-						if (typeof $updateBtn != 'undefined')
-						{
-							$updateBtn.on('click', showLicenseForm);
-						}
-					}
-					else
-					{
-						$downloadBtn.on('click', downloadThat);
-
-						if (typeof $updateBtn != 'undefined')
-						{
-							$updateBtn.on('click', autoUpdateThat);
-						}
-					}
-
-					var $tr = $('<tr/>').appendTo($tbody),
-						$td = $('<td class="notes" colspan="2"/>').appendTo($tr);
-
-					new ReleaseNotes($td, response.app.releases, 'Craft');
-				}
-			}
-			else
-			{
-				$('#no-system-updates').show();
-			}
-
-
-			$('#updates').fadeIn('fast');
-
-			var count = 0;
-			if (response.app && response.app.releases)
-			{
-				count++;
-			}
-
-			if (atLeastOnePluginHasARelease(response.plugins))
-			{
-				count++;
-			}
-
-			if (count >= 2)
-			{
-				$('#update-all').fadeIn('fast');
-			}
-		}
-	});
-
-});
-
 
 })(jQuery);

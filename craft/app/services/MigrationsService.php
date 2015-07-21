@@ -2,30 +2,40 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class MigrationsService
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.services
+ * @since     1.0
  */
 class MigrationsService extends BaseApplicationComponent
 {
+	// Properties
+	// =========================================================================
+
 	/**
-	 * @var string the default command action. It defaults to 'up'.
+	 * The default command action. It defaults to 'up'.
+	 *
+	 * @var string
 	 */
 	public $defaultAction = 'up';
 
+	/**
+	 * @var
+	 */
 	private $_migrationTable;
 
+	// Public Methods
+	// =========================================================================
+
 	/**
+	 * Initializes the application component.
+	 *
 	 * @throws Exception
-	 * @return bool|void
+	 * @return bool|null
 	 */
 	public function init()
 	{
@@ -34,11 +44,15 @@ class MigrationsService extends BaseApplicationComponent
 	}
 
 	/**
-	 * @param null $plugin
+	 * @param BasePlugin|null $plugin
+	 *
 	 * @return mixed
 	 */
 	public function runToTop($plugin = null)
 	{
+		// This might take a while
+		craft()->config->maxPowerCaptain();
+
 		if (($migrations = $this->getNewMigrations($plugin)) === array())
 		{
 			if ($plugin)
@@ -74,9 +88,6 @@ class MigrationsService extends BaseApplicationComponent
 			// Refresh the DB cache
 			craft()->db->getSchema()->refresh();
 
-			// Set a new 2 minute time limit
-			set_time_limit(120);
-
 			if ($this->migrateUp($migration, $plugin) === false)
 			{
 				if ($plugin)
@@ -87,6 +98,9 @@ class MigrationsService extends BaseApplicationComponent
 				{
 					Craft::log('Migration failed for Craft. All later Craft migrations are canceled.', LogLevel::Error);
 				}
+
+				// Refresh the DB cache
+				craft()->db->getSchema()->refresh();
 
 				return false;
 			}
@@ -101,12 +115,16 @@ class MigrationsService extends BaseApplicationComponent
 			Craft::log('Craft migrated up successfully.', LogLevel::Info, true);
 		}
 
+		// Refresh the DB cache
+		craft()->db->getSchema()->refresh();
+
 		return true;
 	}
 
 	/**
 	 * @param      $class
 	 * @param null $plugin
+	 *
 	 * @return bool|null
 	 */
 	public function migrateUp($class, $plugin = null)
@@ -132,12 +150,12 @@ class MigrationsService extends BaseApplicationComponent
 		{
 			if ($plugin)
 			{
-				$pluginRecord = craft()->plugins->getPluginRecord($plugin);
+				$pluginInfo = craft()->plugins->getPluginInfo($plugin);
 
 				craft()->db->createCommand()->insert($this->_migrationTable, array(
 					'version' => $class,
 					'applyTime' => DateTimeHelper::currentTimeForDb(),
-					'pluginId' => $pluginRecord->getPrimaryKey()
+					'pluginId' => $pluginInfo['id']
 				));
 			}
 			else
@@ -161,13 +179,21 @@ class MigrationsService extends BaseApplicationComponent
 	}
 
 	/**
-	 * @param      $class
-	 * @param null $plugin
+	 * @param       $class
+	 * @param  null $plugin
+	 *
+	 * @throws Exception
 	 * @return mixed
 	 */
 	public function instantiateMigration($class, $plugin = null)
 	{
 		$file = IOHelper::normalizePathSeparators($this->getMigrationPath($plugin).$class.'.php');
+
+		if (!IOHelper::fileExists($file) || !IOHelper::isReadable($file))
+		{
+			Craft::log('Tried to find migration file '.$file.' for class '.$class.', but could not.', LogLevel::Error);
+			throw new Exception(Craft::t('Could not find the requested migration file.'));
+		}
 
 		require_once($file);
 
@@ -181,35 +207,12 @@ class MigrationsService extends BaseApplicationComponent
 	/**
 	 * @param null $plugin
 	 * @param null $limit
+	 *
 	 * @return mixed
 	 */
 	public function getMigrationHistory($plugin = null, $limit = null)
 	{
-		if ($plugin === 'all')
-		{
-			$query = craft()->db->createCommand()
-				->select('version, applyTime')
-				->from($this->_migrationTable)
-				->order('version DESC');
-		}
-		else if ($plugin)
-		{
-			$pluginRecord = craft()->plugins->getPluginRecord($plugin);
-
-			$query = craft()->db->createCommand()
-				->select('version, applyTime')
-				->from($this->_migrationTable)
-				->where('pluginId = :pluginId', array(':pluginId' => $pluginRecord->getPrimaryKey()))
-				->order('version DESC');
-		}
-		else
-		{
-			$query = craft()->db->createCommand()
-				->select('version, applyTime')
-				->from($this->_migrationTable)
-				->where('pluginId IS NULL')
-				->order('version DESC');
-		}
+		$query = $this->_createMigrationQuery($plugin);
 
 		if ($limit !== null)
 		{
@@ -229,6 +232,21 @@ class MigrationsService extends BaseApplicationComponent
 	}
 
 	/**
+	 * Returns whether a given migration has been run.
+	 *
+	 * @param string      $version
+	 * @param string|null $plugin
+	 *
+	 * @return bool
+	 */
+	public function hasRun($version, $plugin = null)
+	{
+		return (bool) $this->_createMigrationQuery($plugin)
+			->andWhere('version = :version', array(':version' => $version))
+			->count('id');
+	}
+
+	/**
 	 * Gets migrations that have no been applied yet AND have a later timestamp than the current Craft release.
 	 *
 	 * @param $plugin
@@ -237,57 +255,46 @@ class MigrationsService extends BaseApplicationComponent
 	 */
 	public function getNewMigrations($plugin = null)
 	{
-		$applied = array();
+		$migrations = array();
 		$migrationPath = $this->getMigrationPath($plugin);
 
-		foreach ($this->getMigrationHistory($plugin) as $migration)
+		if (IOHelper::folderExists($migrationPath) && IOHelper::isReadable($migrationPath))
 		{
-			$applied[] = $migration['version'];
-		}
+			$applied = array();
 
-		$migrations = array();
-		$handle = opendir($migrationPath);
-
-		if ($plugin)
-		{
-			$pluginRecord = craft()->plugins->getPluginRecord($plugin);
-			$storedDate = $pluginRecord->installDate->getTimestamp();
-		}
-		else
-		{
-			$storedDate = Craft::getReleaseDate()->getTimestamp();
-		}
-
-		while (($file = readdir($handle)) !== false)
-		{
-			if ($file[0] === '.')
+			foreach ($this->getMigrationHistory($plugin) as $migration)
 			{
-				continue;
+				$applied[] = $migration['version'];
 			}
 
-			$path = IOHelper::normalizePathSeparators($migrationPath.$file);
-			$class = IOHelper::getFileName($path, false);
+			$handle = opendir($migrationPath);
 
-			// Have we already run this migration?
-			if (in_array($class, $applied))
+			while (($file = readdir($handle)) !== false)
 			{
-				continue;
-			}
+				if ($file[0] === '.')
+				{
+					continue;
+				}
 
-			if (preg_match('/^m(\d\d)(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)_\w+\.php$/', $file, $matches))
-			{
-				// Check the migration timestamp against the Craft release date
-				$time = strtotime('20'.$matches[1].'-'.$matches[2].'-'.$matches[3].' '.$matches[4].':'.$matches[5].':'.$matches[6]);
+				$path = IOHelper::normalizePathSeparators($migrationPath.$file);
+				$class = IOHelper::getFileName($path, false);
 
-				if ($time > $storedDate)
+				// Have we already run this migration?
+				if (in_array($class, $applied))
+				{
+					continue;
+				}
+
+				if (preg_match('/^m(\d\d)(\d\d)(\d\d)_(\d\d)(\d\d)(\d\d)_\w+\.php$/', $file, $matches))
 				{
 					$migrations[] = $class;
 				}
 			}
+
+			closedir($handle);
+			sort($migrations);
 		}
 
-		closedir($handle);
-		sort($migrations);
 		return $migrations;
 	}
 
@@ -303,8 +310,9 @@ class MigrationsService extends BaseApplicationComponent
 
 	/**
 	 * @param null $plugin
-	 * @return string
+	 *
 	 * @throws Exception
+	 * @return string
 	 */
 	public function getMigrationPath($plugin = null)
 	{
@@ -317,14 +325,6 @@ class MigrationsService extends BaseApplicationComponent
 			$path = craft()->path->getMigrationsPath();
 		}
 
-		if (!IOHelper::folderExists($path))
-		{
-			if (!IOHelper::createFolder($path))
-			{
-				throw new Exception(Craft::t('Tried to create the migration folder at “{folder}”, but could not.', array('folder' => $path)));
-			}
-		}
-
 		return $path;
 	}
 
@@ -334,5 +334,38 @@ class MigrationsService extends BaseApplicationComponent
 	public function getTemplate()
 	{
 		return file_get_contents(Craft::getPathOfAlias('app.etc.updates.migrationtemplate').'.php');
+	}
+
+	// Private Methods
+	// =========================================================================
+
+	/**
+	 * Returns a DbCommand object prepped for retrieving migrations.
+	 *
+	 * @param string|null $plugin
+	 *
+	 * @return DbCommand
+	 */
+	private function _createMigrationQuery($plugin = null)
+	{
+		$query = craft()->db->createCommand()
+			->select('version, applyTime')
+			->from($this->_migrationTable)
+			->order('version desc');
+
+		if ($plugin)
+		{
+			if ($plugin != 'all')
+			{
+				$pluginInfo = craft()->plugins->getPluginInfo($plugin);
+				$query->where('pluginId = :pluginId', array(':pluginId' => $pluginInfo['id']));
+			}
+		}
+		else
+		{
+			$query->where('pluginId is null');
+		}
+
+		return $query;
 	}
 }

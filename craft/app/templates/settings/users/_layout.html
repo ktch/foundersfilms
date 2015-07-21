@@ -1,4 +1,5 @@
-{% requirePackage 'Users' %}
+{% requireEdition CraftPro %}
+{% requireAdmin %}
 
 {% extends "_layouts/cp" %}
 {% set title="Users"|t %}
@@ -6,7 +7,6 @@
 {% set crumbs = [
 	{ label: "Settings"|t, url: url('settings') }
 ] %}
-
 
 {% set tabs = {
 	groups: { label: "User Groups"|t, url: url('settings/users') },

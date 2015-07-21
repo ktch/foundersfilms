@@ -1,13 +1,15 @@
 {% import "_includes/forms" as forms %}
 
 
-{% if craft.hasPackage('PublishPro') %}
+{% if CraftEdition >= CraftClient %}
 	{% set sectionInput %}
 		<div class="select">
 			<select id="section" name="section">
 				<option value="*">{{ "All"|t }}</option>
 				{% for section in craft.sections.getAllSections() %}
-					<option value="{{ section.id }}"{% if section.id == settings.section %} selected{% endif %}>{{ section.name|t }}</option>
+					{% if section.type != 'single' %}
+						<option value="{{ section.id }}"{% if section.id == settings.section %} selected{% endif %}>{{ section.name|t }}</option>
+					{% endif %}
 				{% endfor %}
 			</select>
 		</div>
@@ -18,6 +20,27 @@
 		instructions: "Which section do you want to pull recent entries from?"|t,
 		id: 'section',
 	}, sectionInput) }}
+
+	{% if craft.isLocalized() %}
+		{% set editableLocales = craft.i18n.getEditableLocales() %}
+
+		{% if editableLocales|length > 1 %}
+			{% set localeInput %}
+				<div class="select">
+					<select id="locale" name="locale">
+						{% for locale in editableLocales %}
+							<option value="{{ locale.id }}"{% if locale.id == settings.locale %} selected{% endif %}>{{ locale.getName() }}</option>
+						{% endfor %}
+					</select>
+				</div>
+			{% endset %}
+
+			{{ forms.field({
+				id: 'locale',
+				label: "Locale"|t
+			}, localeInput) }}
+		{% endif %}
+	{% endif %}
 {% endif %}
 
 

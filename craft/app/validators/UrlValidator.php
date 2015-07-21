@@ -2,33 +2,46 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class UrlValidator
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.validators
+ * @since     1.0
  */
 class UrlValidator extends \CUrlValidator
 {
-	/**
-	 * Override the $pattern regex so that a TLD is not required, and the protocol may be relative.
-	 */
-	public $pattern = '/^(?:{schemes}:)?\/\/(([A-Z0-9][A-Z0-9_-]*)(\.[A-Z0-9][A-Z0-9_-]*)+)?[^\s]*$/i';
+	// Properties
+	// =========================================================================
 
 	/**
-	 * Add support for protocol-relative URLs.
+	 * Override the $pattern regex so that a TLD is not required, and the protocol may be relative.
 	 *
-	 * @see http://paulirish.com/2010/the-protocol-relative-url/
+	 * @var string
+	 */
+	public $pattern = '/^(?:(?:{schemes}:)?\/\/(([A-Z0-9][A-Z0-9_-]*)(\.[A-Z0-9][A-Z0-9_-]*)+)?|\/)[^\s]*$/i';
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * Add support for protocol-relative URLs. {@see http://paulirish.com/2010/the-protocol-relative-url/}
+	 *
+	 * @param string $value
+	 *
+	 * @return string
 	 */
 	public function validateValue($value)
 	{
-		if ($this->defaultScheme !== null && strncmp($value, '//', 2) == 0)
+		// Ignore URLs with any environment variables in them
+		if (mb_strpos($value, '{') !== false)
+		{
+			return $value;
+		}
+
+		if ($this->defaultScheme !== null && strncmp($value, '/', 1) === 0)
 		{
 			$this->defaultScheme = null;
 		}

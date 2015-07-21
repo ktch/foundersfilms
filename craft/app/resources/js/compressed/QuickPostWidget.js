@@ -1,10 +1,12 @@
-/*!
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-(function(a){Craft.QuickPostWidget=Garnish.Base.extend({params:null,initFields:null,$widget:null,$form:null,$formClone:null,$spinner:null,$errorList:null,loading:false,init:function(b,c,d){this.params=c;this.initFields=d;this.$widget=a("#widget"+b);this.$form=this.$widget.find("form:first");this.$spinner=this.$form.find(".spinner");this.$formClone=this.$form.clone();this.initForm()},initForm:function(){this.addListener(this.$form,"submit","onSubmit");this.initFields()},onSubmit:function(b){b.preventDefault();if(this.loading){return}this.loading=true;this.$spinner.removeClass("hidden");var d=Garnish.getPostData(this.$form),c=a.extend({enabled:1},d,this.params);Craft.postActionRequest("entries/saveEntry",c,a.proxy(function(e){if(this.$errorList){this.$errorList.children().remove()}if(e.success){Craft.cp.displayNotice(Craft.t("Entry saved."));var g=this.$formClone.clone();this.$form.replaceWith(g);this.$form=g;this.initForm();if(typeof Craft.RecentEntriesWidget!="undefined"){for(var h=0;h<Craft.RecentEntriesWidget.instances.length;h++){var k=Craft.RecentEntriesWidget.instances[h];if(!k.params.sectionId||k.params.sectionId==this.params.sectionId){k.addEntry({url:e.cpEditUrl,title:e.entry.title,postDate:e.postDate,username:e.author.username})}}}}else{Craft.cp.displayError(Craft.t("Couldn’t save entry."));if(e.errors){if(!this.$errorList){this.$errorList=a('<ul class="errors"/>').insertAfter(this.$form)}for(var j in e.errors){for(var h=0;h<e.errors[j].length;h++){var f=e.errors[j][h];a("<li>"+f+"</li>").appendTo(this.$errorList)}}}}this.loading=false;this.$spinner.addClass("hidden")},this))}})})(jQuery);
+/*
+ Copyright (c) 2014, Pixel & Tonic, Inc.
+ @license   http://buildwithcraft.com/license Craft License Agreement
+ @see       http://buildwithcraft.com
+ @package   craft.app.resources
+*/
+(function(c){Craft.QuickPostWidget=Garnish.Base.extend({params:null,initFields:null,$widget:null,$form:null,$formClone:null,$spinner:null,$errorList:null,loading:!1,init:function(b,a,f){this.params=a;this.initFields=f;this.$widget=c("#widget"+b);b=this.$widget.find("form:first");this.$formClone=b.clone();this.initForm(b)},initForm:function(b){this.$form=b;this.$spinner=this.$form.find(".spinner");this.initFields();b=this.$form.find("> .buttons > .btngroup > .menubtn");var a=b.next().find("> ul > li > a");
+b.menubtn();this.addListener(this.$form,"submit","handleFormSubmit");this.addListener(a,"click","saveAndContinueEditing")},handleFormSubmit:function(b){b.preventDefault();this.save(c.proxy(this,"onSave"))},saveAndContinueEditing:function(){this.save(c.proxy(this,"gotoEntry"))},save:function(b){if(!this.loading){this.loading=!0;this.$spinner.removeClass("hidden");var a=Garnish.getPostData(this.$form),a=c.extend({enabled:1},a,this.params);Craft.postActionRequest("entries/saveEntry",a,c.proxy(function(a,
+g){this.loading=!1;this.$spinner.addClass("hidden");this.$errorList&&this.$errorList.children().remove();if("success"==g)if(a.success)Craft.cp.displayNotice(Craft.t("Entry saved.")),b(a);else if(Craft.cp.displayError(Craft.t("Couldn\u2019t save entry.")),a.errors){this.$errorList||(this.$errorList=c('<ul class="errors"/>').insertAfter(this.$form));for(var e in a.errors)for(var d=0;d<a.errors[e].length;d++)c("<li>"+a.errors[e][d]+"</li>").appendTo(this.$errorList)}},this))}},onSave:function(b){var a=
+this.$formClone.clone();this.$form.replaceWith(a);this.initForm(a);if("undefined"!=typeof Craft.RecentEntriesWidget)for(a=0;a<Craft.RecentEntriesWidget.instances.length;a++){var c=Craft.RecentEntriesWidget.instances[a];c.params.sectionId&&c.params.sectionId!=this.params.sectionId||c.addEntry({url:b.cpEditUrl,title:b.title,postDate:b.postDate,username:b.author.username})}},gotoEntry:function(b){Craft.redirectTo(b.cpEditUrl)}})})(jQuery);
+
+//# sourceMappingURL=QuickPostWidget.min.map

@@ -2,26 +2,35 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class QuickPostWidget
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.widgets
+ * @since     1.0
  */
 class QuickPostWidget extends BaseWidget
 {
-	public $multipleInstances = true;
-
-	private $_section;
+	// Properties
+	// =========================================================================
 
 	/**
-	 * Returns the type of widget this is.
+	 * @var bool
+	 */
+	public $multipleInstances = true;
+
+	/**
+	 * @var
+	 */
+	private $_section;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc IComponentType::getName()
 	 *
 	 * @return string
 	 */
@@ -31,21 +40,7 @@ class QuickPostWidget extends BaseWidget
 	}
 
 	/**
-	 * Defines the settings.
-	 *
-	 * @access protected
-	 * @return array
-	 */
-	protected function defineSettings()
-	{
-		return array(
-			'section' => array(AttributeType::Number, 'required' => true),
-			'fields'  => AttributeType::Mixed,
-		);
-	}
-
-	/**
-	 * Returns the widget's body HTML.
+	 * @inheritDoc ISavableComponentType::getSettingsHtml()
 	 *
 	 * @return string
 	 */
@@ -56,9 +51,12 @@ class QuickPostWidget extends BaseWidget
 
 		foreach (craft()->sections->getAllSections() as $section)
 		{
-			if (craft()->userSession->checkPermission('createEntries:'.$section->id))
+			if ($section->type !== SectionType::Single)
 			{
-				$sections[] = $section;
+				if (craft()->userSession->checkPermission('createEntries:'.$section->id))
+				{
+					$sections[] = $section;
+				}
 			}
 		}
 
@@ -72,34 +70,40 @@ class QuickPostWidget extends BaseWidget
 	 * Preps the settings before they're saved to the database.
 	 *
 	 * @param array $settings
+	 *
 	 * @return array
 	 */
 	public function prepSettings($settings)
 	{
 		$sectionId = $settings['section'];
 
-		if (isset($settings['fields']['section'.$sectionId]))
+		if (isset($settings['sections']))
 		{
-			$settings['fields'] = $settings['fields']['section'.$sectionId];
+			if (isset($settings['sections'][$sectionId]))
+			{
+				$settings = array_merge($settings, $settings['sections'][$sectionId]);
+			}
+
+			unset($settings['sections']);
 		}
 
 		return $settings;
 	}
 
 	/**
-	 * Gets the widget's title.
+	 * @inheritDoc IWidget::getTitle()
 	 *
 	 * @return string
 	 */
 	public function getTitle()
 	{
-		if (Craft::hasPackage(CraftPackage::PublishPro))
+		if (craft()->getEdition() >= Craft::Client)
 		{
 			$section = $this->_getSection();
 
 			if ($section)
 			{
-				return Craft::t('Post a new {section} entry', array('section' => $section->name));
+				return Craft::t('Post a new {section} entry', array('section' => Craft::t($section->name)));
 			}
 		}
 
@@ -107,9 +111,9 @@ class QuickPostWidget extends BaseWidget
 	}
 
 	/**
-	 * Gets the widget's body HTML.
+	 * @inheritDoc IWidget::getBodyHtml()
 	 *
-	 * @return string
+	 * @return string|false
 	 */
 	public function getBodyHtml()
 	{
@@ -123,18 +127,67 @@ class QuickPostWidget extends BaseWidget
 			return '<p>'.Craft::t('No section has been selected yet.').'</p>';
 		}
 
-		$params = array('sectionId' => $section->id);
-		craft()->templates->includeJs('new Craft.QuickPostWidget('.$this->model->id.', '.JsonHelper::encode($params).', function() {');
+		$entryTypes = $section->getEntryTypes('id');
+
+		if (!$entryTypes)
+		{
+			return '<p>'.Craft::t('No entry types exist for this section.').'</p>';
+		}
+
+		if ($this->getSettings()->entryType && isset($entryTypes[$this->getSettings()->entryType]))
+		{
+			$entryTypeId = $this->getSettings()->entryType;
+		}
+		else
+		{
+			$entryTypeId = array_shift(array_keys($entryTypes));
+		}
+
+		$entryType = $entryTypes[$entryTypeId];
+
+		$params = array(
+			'sectionId'   => $section->id,
+			'typeId' => $entryTypeId,
+		);
+
+		craft()->templates->startJsBuffer();
 
 		$html = craft()->templates->render('_components/widgets/QuickPost/body', array(
-			'section'  => $section,
-			'settings' => $this->getSettings()
+			'section'   => $section,
+			'entryType' => $entryType,
+			'settings'  => $this->getSettings()
 		));
 
-		craft()->templates->includeJs('});');
+		$fieldJs = craft()->templates->clearJsBuffer(false);
+
+		craft()->templates->includeJs('new Craft.QuickPostWidget(' .
+			$this->model->id.', ' .
+			JsonHelper::encode($params).', ' .
+			"function() {\n".$fieldJs .
+		"\n});");
 
 		return $html;
 	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseSavableComponentType::defineSettings()
+	 *
+	 * @return array
+	 */
+	protected function defineSettings()
+	{
+		return array(
+			'section'   => array(AttributeType::Number, 'required' => true),
+			'entryType' => AttributeType::Number,
+			'fields'    => AttributeType::Mixed,
+		);
+	}
+
+	// Private Methods
+	// =========================================================================
 
 	/**
 	 * Returns the widget's section.

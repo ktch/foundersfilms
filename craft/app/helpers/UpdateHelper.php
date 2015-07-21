@@ -2,25 +2,32 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class UpdateHelper
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.helpers
+ * @since     1.0
  */
 class UpdateHelper
 {
-	private static $_manifestData;
+	// Properties
+	// =========================================================================
 
 	/**
-	 * @static
+	 * @var
+	 */
+	private static $_manifestData;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
 	 * @param $manifestData
+	 *
+	 * @return null
 	 */
 	public static function rollBackFileChanges($manifestData)
 	{
@@ -64,21 +71,23 @@ class UpdateHelper
 	}
 
 	/**
+	 * Rolls back any changes made to the DB during the update process.
+	 *
 	 * @param $backupPath
+	 *
+	 * @return null
 	 */
 	public static function rollBackDatabaseChanges($backupPath)
 	{
 		$dbBackup = new DbBackup();
-		$fullBackupPath= craft()->path->getDbBackupPath().$backupPath.'.sql';
+		$fullBackupPath = craft()->path->getDbBackupPath().$backupPath.'.sql';
 		$dbBackup->restore($fullBackupPath);
 	}
 
 	/**
-	 * @static
-	 *
 	 * @param $manifestData
 	 * @param $sourceTempFolder
-	 * @return bool
+	 *
 	 * @return bool
 	 */
 	public static function doFileUpdate($manifestData, $sourceTempFolder)
@@ -149,8 +158,8 @@ class UpdateHelper
 	}
 
 	/**
-	 * @static
 	 * @param $line
+	 *
 	 * @return bool
 	 */
 	public static function isManifestVersionInfoLine($line)
@@ -164,13 +173,56 @@ class UpdateHelper
 	}
 
 	/**
-	 * @static
+	 * Returns the local build number from the given manifest file.
+	 *
+	 * @param $manifestData
+	 *
+	 * @return bool|string
+	 */
+	public static function getLocalBuildFromManifest($manifestData)
+	{
+		if (static::isManifestVersionInfoLine($manifestData[0]))
+		{
+			$parts = explode(';', $manifestData[0]);
+			$index = mb_strrpos($parts[0], '.');
+			$version = mb_substr($parts[0], $index + 1);
+			return $version;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Returns the local version number from the given manifest file.
+	 *
+	 * @param $manifestData
+	 *
+	 * @return bool|string
+	 */
+	public static function getLocalVersionFromManifest($manifestData)
+	{
+		if (static::isManifestVersionInfoLine($manifestData[0]))
+		{
+			$parts = explode(';', $manifestData[0]);
+			$index = mb_strrpos($parts[0], '.');
+			$build = mb_substr($parts[0], 2, $index - 2);
+
+			return $build;
+		}
+
+		return false;
+	}
+
+	/**
+	 * Return true if line is a manifest migration line.
+	 *
 	 * @param $line
+	 *
 	 * @return bool
 	 */
 	public static function isManifestMigrationLine($line)
 	{
-		if (strpos($line, 'migrations/') !== false)
+		if (mb_strpos($line, 'migrations/') !== false)
 		{
 			return true;
 		}
@@ -181,8 +233,8 @@ class UpdateHelper
 	/**
 	 * Returns the relevant lines from the update manifest file starting with the current local version/build.
 	 *
-	 * @static
 	 * @param $manifestDataPath
+	 *
 	 * @throws Exception
 	 * @return array
 	 */
@@ -190,34 +242,37 @@ class UpdateHelper
 	{
 		if (static::$_manifestData == null)
 		{
-			// get manifest file
-			$manifestFileData = IOHelper::getFileContents($manifestDataPath.'/craft_manifest', true);
-
-			if ($manifestFileData === false)
+			if (IOHelper::fileExists($manifestDataPath.'/craft_manifest'))
 			{
-				throw new Exception(Craft::t('There was a problem reading the update manifest data.'));
-			}
+				// get manifest file
+				$manifestFileData = IOHelper::getFileContents($manifestDataPath.'/craft_manifest', true);
 
-			// Remove any trailing empty newlines
-			if ($manifestFileData[count($manifestFileData) - 1] == '')
-			{
-				array_pop($manifestFileData);
-			}
-
-			$manifestData = array_map('trim', $manifestFileData);
-			$updateModel = craft()->updates->getUpdates();
-
-			// Only use the manifest data starting from the local version
-			for ($counter = 0; $counter < count($manifestData); $counter++)
-			{
-				if (strpos($manifestData[$counter], '##'.$updateModel->app->localVersion.'.'.$updateModel->app->localBuild) !== false)
+				if ($manifestFileData === false)
 				{
-					break;
+					throw new Exception(Craft::t('There was a problem reading the update manifest data.'));
 				}
-			}
 
-			$manifestData = array_slice($manifestData, $counter);
-			static::$_manifestData = $manifestData;
+				// Remove any trailing empty newlines
+				if ($manifestFileData[count($manifestFileData) - 1] == '')
+				{
+					array_pop($manifestFileData);
+				}
+
+				$manifestData = array_map('trim', $manifestFileData);
+				$updateModel = craft()->updates->getUpdates();
+
+				// Only use the manifest data starting from the local version
+				for ($counter = 0; $counter < count($manifestData); $counter++)
+				{
+					if (mb_strpos($manifestData[$counter], '##'.$updateModel->app->localVersion.'.'.$updateModel->app->localBuild) !== false)
+					{
+						break;
+					}
+				}
+
+				$manifestData = array_slice($manifestData, $counter);
+				static::$_manifestData = $manifestData;
+			}
 		}
 
 		return static::$_manifestData;
@@ -225,6 +280,7 @@ class UpdateHelper
 
 	/**
 	 * @param $uid
+	 *
 	 * @return string
 	 */
 	public static function getUnzipFolderFromUID($uid)
@@ -234,6 +290,7 @@ class UpdateHelper
 
 	/**
 	 * @param $uid
+	 *
 	 * @return string
 	 */
 	public static function getZipFileFromUID($uid)
@@ -243,11 +300,12 @@ class UpdateHelper
 
 	/**
 	 * @param $line
+	 *
 	 * @return bool
 	 */
 	public static function isManifestLineAFolder($line)
 	{
-		if (substr($line, -1) == '*')
+		if (mb_substr($line, -1) == '*')
 		{
 			return true;
 		}
@@ -257,6 +315,7 @@ class UpdateHelper
 
 	/**
 	 * @param $line
+	 *
 	 * @return string
 	 */
 	public static function cleanManifestFolderLine($line)

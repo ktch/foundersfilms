@@ -1,4 +1,4 @@
-/*!
+/**
  * Craft by Pixel & Tonic
  *
  * @package   Craft
@@ -23,6 +23,7 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 	$fieldPlaceholder: null,
 
 	postUrl: null,
+	locale: null,
 	basePostData: null,
 	inPreviewMode: false,
 	fields: null,
@@ -31,7 +32,7 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 	loading: false,
 	checkAgain: false,
 
-	init: function(entryUrl)
+	init: function(entryUrl, locale)
 	{
 		if (entryUrl)
 		{
@@ -39,7 +40,15 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 		}
 		else
 		{
-			this.postUrl = Craft.baseSiteUrl;
+			this.postUrl = Craft.baseSiteUrl.replace(/\/+$/, '') + '/';
+		}
+
+		this.locale = locale;
+
+		// Load the preview over SSL if the current request is
+		if (document.location.protocol == 'https:')
+		{
+			this.postUrl = this.postUrl.replace(/^http:/, 'https:');
 		}
 
 		this.$form = $('#entry-form');
@@ -48,7 +57,8 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 		this.$fieldPlaceholder = $('<div/>');
 
 		this.basePostData = {
-			action: 'entries/previewEntry'
+			action: 'entries/previewEntry',
+			locale: this.locale
 		};
 
 		var $hiddenInputs = this.$form.children('input[type=hidden]');
@@ -59,6 +69,14 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 		}
 
 		this.addListener(this.$btn, 'click', 'togglePreviewMode');
+
+		Craft.cp.on('beforeSaveShortcut', $.proxy(function()
+		{
+			if (this.inPreviewMode)
+			{
+				this.moveFieldsBack();
+			}
+		}, this));
 	},
 
 	togglePreviewMode: function()
@@ -85,7 +103,7 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 			this.$iframe = $('<iframe id="previewmode-iframe" frameborder="0" />').appendTo(this.$iframeContainer);
 
 			var $header = $('<header class="header"></header>').appendTo(this.$editor),
-				$closeBtn = $('<div class="btn" data-icon="x" title="'+Craft.t('Close')+'"></div>').appendTo($header),
+				$closeBtn = $('<div class="btn">'+Craft.t('Done')+'</div>').appendTo($header),
 				$heading = $('<h1>'+Craft.t('Live Preview')+'</h1>').appendTo($header);
 
 			this.addListener($closeBtn, 'click', 'hidePreviewMode');
@@ -94,7 +112,7 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 		// Move all the fields into the editor rather than copying them
 		// so any JS that's referencing the elements won't break.
 		this.fields = [];
-		var $fields = this.$form.children('.field').add(this.$form.children(':not(#entry-settings)').children('.field'));
+		var $fields = $('#fields > .field, #fields > div > div > .field');
 
 		for (var i= 0; i < $fields.length; i++)
 		{
@@ -113,6 +131,8 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 				$clone: $clone
 			});
 		}
+
+		Garnish.$win.trigger('resize');
 
 		if (this.updateIframe())
 		{
@@ -175,18 +195,7 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 			clearInterval(this.updateIframeInterval);
 		}
 
-		for (var i = 0; i < this.fields.length; i++)
-		{
-			var field = this.fields[i];
-			field.$newClone = field.$field.clone();
-
-			// It's important that the actual field is added to the DOM *after* the clone,
-			// so any radio buttons in the field get deselected from the clone rather than the actual field.
-			this.$fieldPlaceholder.insertAfter(field.$field);
-			field.$field.detach();
-			this.$fieldPlaceholder.replaceWith(field.$newClone);
-			field.$clone.replaceWith(field.$field);
-		}
+		this.moveFieldsBack();
 
 		var windowWidth = Garnish.$win.width();
 
@@ -211,13 +220,41 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 		this.inPreviewMode = false;
 	},
 
+	moveFieldsBack: function()
+	{
+		for (var i = 0; i < this.fields.length; i++)
+		{
+			var field = this.fields[i];
+			field.$newClone = field.$field.clone();
+
+			// It's important that the actual field is added to the DOM *after* the clone,
+			// so any radio buttons in the field get deselected from the clone rather than the actual field.
+			this.$fieldPlaceholder.insertAfter(field.$field);
+			field.$field.detach();
+			this.$fieldPlaceholder.replaceWith(field.$newClone);
+			field.$clone.replaceWith(field.$field);
+		}
+
+		Garnish.$win.trigger('resize');
+	},
+
 	setIframeWidth: function()
 	{
 		this.$iframeContainer.width(Garnish.$win.width()-Craft.EntryPreviewMode.formWidth);
 	},
 
-	updateIframe: function()
+	updateIframe: function(force)
 	{
+		if (force)
+		{
+			this.lastPostData = null;
+		}
+
+		if (!this.inPreviewMode)
+		{
+			return false;
+		}
+
 		if (this.loading)
 		{
 			this.checkAgain = true;
@@ -264,7 +301,7 @@ Craft.EntryPreviewMode = Garnish.Base.extend({
 		{
 			return false;
 		}
-	},
+	}
 },
 {
 	formWidth: 400

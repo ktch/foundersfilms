@@ -1,17 +1,15 @@
-/*!
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+/**
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
 (function($) {
 
-var LoginForm = Garnish.Base.extend({
-
+var LoginForm = Garnish.Base.extend(
+{
 	$form: null,
 	$loginNameInput: null,
 	$loginFields: null,
@@ -19,10 +17,12 @@ var LoginForm = Garnish.Base.extend({
 	$passwordInput: null,
 	$forgotPasswordLink: null,
 	$rememberMeCheckbox: null,
+	$sslIcon: null,
 	$submitBtn: null,
 	$spinner: null,
 	$error: null,
 
+	passwordInputInterval: null,
 	forgotPassword: false,
 	loading: false,
 
@@ -34,32 +34,78 @@ var LoginForm = Garnish.Base.extend({
 		this.$passwordPaneItem = this.$loginFields.children();
 		this.$passwordInput = $('#password');
 		this.$forgotPasswordLink = $('#forgot-password');
+		this.$sslIcon = $('#ssl-icon');
 		this.$submitBtn = $('#submit');
 		this.$spinner = $('#spinner');
 		this.$rememberMeCheckbox = $('#rememberMe');
 
-		this.addListener(this.$loginNameInput, 'keypress,keyup,change,blur', 'onInputChange');
-		this.addListener(this.$passwordInput, 'keypress,keyup,change,blur', 'onInputChange');
-		this.addListener(this.$forgotPasswordLink, 'activate', 'onForgetPassword');
-		this.addListener(this.$submitBtn, 'activate', 'onSubmit');
+		new Craft.PasswordInput(this.$passwordInput, {
+			onToggleInput: $.proxy(function($newPasswordInput) {
+				this.removeListener(this.$passwordInput, 'textchange');
+				this.$passwordInput = $newPasswordInput;
+				this.addListener(this.$passwordInput, 'textchange', 'validate');
+			}, this)
+		});
+
+		this.addListener(this.$loginNameInput, 'textchange', 'validate');
+		this.addListener(this.$passwordInput, 'textchange', 'validate');
+		this.addListener(this.$forgotPasswordLink, 'click', 'onForgetPassword');
 		this.addListener(this.$form, 'submit', 'onSubmit');
+
+		// Super hacky!
+		this.addListener(this.$sslIcon, 'mouseover', function() {
+			if (this.$sslIcon.hasClass('disabled'))
+			{
+				return;
+			}
+
+			this.$submitBtn.addClass('hover');
+		});
+		this.addListener(this.$sslIcon, 'mouseout', function() {
+			if (this.$sslIcon.hasClass('disabled'))
+			{
+				return;
+			}
+
+			this.$submitBtn.removeClass('hover');
+		});
+		this.addListener(this.$sslIcon, 'mousedown', function() {
+			if (this.$sslIcon.hasClass('disabled'))
+			{
+				return;
+			}
+
+			this.$submitBtn.addClass('active');
+
+			this.addListener(Garnish.$doc, 'mouseup', function() {
+				this.$submitBtn.removeClass('active');
+				this.removeListener(Garnish.$doc, 'mouseup');
+			});
+		});
+
+		// Manually validate the inputs every 250ms since some browsers don't fire events when autofill is used
+		// http://stackoverflow.com/questions/11708092/detecting-browser-autofill
+		this.passwordInputInterval = setInterval($.proxy(this, 'validate'), 250);
+
+		this.addListener(this.$sslIcon, 'click', function() {
+			this.$submitBtn.click();
+		});
 	},
 
 	validate: function()
 	{
 		if (this.$loginNameInput.val() && (this.forgotPassword || this.$passwordInput.val().length >= 6))
 		{
+			this.$sslIcon.enable();
 			this.$submitBtn.enable();
 			return true;
 		}
-
-		this.$submitBtn.disable();
-		return false;
-	},
-
-	onInputChange: function()
-	{
-		this.validate();
+		else
+		{
+			this.$sslIcon.disable();
+			this.$submitBtn.disable();
+			return false;
+		}
 	},
 
 	onSubmit: function(event)
@@ -95,18 +141,22 @@ var LoginForm = Garnish.Base.extend({
 			loginName: this.$loginNameInput.val()
 		};
 
-		Craft.postActionRequest('users/forgotPassword', data, $.proxy(function(response)
+		Craft.postActionRequest('users/sendPasswordResetEmail', data, $.proxy(function(response, textStatus)
 		{
-			if (typeof response.success != 'undefined' && response.success)
+			if (textStatus == 'success')
 			{
-				new MessageSentModal();
-			}
-			else
-			{
-				this.showError(response.error);
+				if (response.success)
+				{
+					new MessageSentModal();
+				}
+				else
+				{
+					this.showError(response.error);
+				}
 			}
 
 			this.onSubmitResponse();
+
 		}, this));
 	},
 
@@ -118,20 +168,28 @@ var LoginForm = Garnish.Base.extend({
 			rememberMe: (this.$rememberMeCheckbox.prop('checked') ? 'y' : '')
 		};
 
-		Craft.postActionRequest('users/login', data, $.proxy(function(response)
+		Craft.postActionRequest('users/login', data, $.proxy(function(response, textStatus)
 		{
-			if (typeof response.success != 'undefined' && response.success)
+			if (textStatus == 'success')
 			{
-				window.location.href = Craft.getUrl(window.returnUrl);
+				if (response.success)
+				{
+					window.location.href = Craft.getUrl(response.returnUrl);
+				}
+				else
+				{
+					Garnish.shake(this.$form);
+					this.onSubmitResponse();
+
+					// Add the error message
+					this.showError(response.error);
+				}
 			}
 			else
 			{
-				Garnish.shake(this.$form);
 				this.onSubmitResponse();
-
-				// Add the error message
-				this.showError(response.error);
 			}
+
 		}, this));
 
 		return false;
@@ -147,16 +205,22 @@ var LoginForm = Garnish.Base.extend({
 	showError: function(error)
 	{
 		if (!error)
+		{
 			error = Craft.t('An unknown error occurred.');
+		}
 
 		this.$error = $('<p class="error" style="display:none">'+error+'</p>').appendTo(this.$form);
-		this.$error.fadeIn();
+		this.$error.velocity('fadeIn');
 	},
 
 	onForgetPassword: function(event)
 	{
 		event.preventDefault();
-		this.$loginNameInput.focus();
+
+		if (!Garnish.isMobileBrowser())
+		{
+			this.$loginNameInput.focus();
+		}
 
 		if (this.$error)
 		{
@@ -167,12 +231,13 @@ var LoginForm = Garnish.Base.extend({
 			loginFieldsHeight = this.$loginFields.height(),
 			newFormTopMargin = formTopMargin + Math.round(loginFieldsHeight/2);
 
-		this.$form.animate({marginTop: newFormTopMargin}, 'fast');
-		this.$loginFields.animate({height: 0}, 'fast');
+		this.$form.velocity({marginTop: newFormTopMargin}, 'fast');
+		this.$loginFields.velocity({height: 0}, 'fast');
 
-		this.$submitBtn.find('span').html(Craft.t('Reset Password'));
+		this.$submitBtn.addClass('reset-password');
+		this.$submitBtn.attr('value', Craft.t('Reset Password'));
 		this.$submitBtn.enable();
-		this.$submitBtn.removeAttr('data-icon');
+		this.$sslIcon.remove();
 
 		this.forgotPassword = true;
 		this.validate();
@@ -180,11 +245,11 @@ var LoginForm = Garnish.Base.extend({
 });
 
 
-var MessageSentModal = Garnish.Modal.extend({
-
+var MessageSentModal = Garnish.Modal.extend(
+{
 	init: function()
 	{
-		var $container = $('<div class="pane email-sent">'+Craft.t('Check your email for instructions to reset your password.')+'</div>')
+		var $container = $('<div class="modal fitted email-sent"><div class="body">'+Craft.t('Check your email for instructions to reset your password.')+'</div></div>')
 			.appendTo(Garnish.$bod);
 
 		this.base($container);
@@ -193,7 +258,6 @@ var MessageSentModal = Garnish.Modal.extend({
 	hide: function()
 	{
 	}
-
 });
 
 

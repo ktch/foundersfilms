@@ -1,106 +1,62 @@
 <?php
 
-/**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
 // Make sure this is PHP 5.3 or later
+// -----------------------------------------------------------------------------
+
 if (!defined('PHP_VERSION_ID') || PHP_VERSION_ID < 50300)
 {
 	exit('Craft requires PHP 5.3.0 or later, but you&rsquo;re running '.PHP_VERSION.'. Please talk to your host/IT department about upgrading PHP or your server.');
 }
 
-// Is this a script name redirect test?
+// Check for this early because Craft uses it before the requirements checker gets a chance to run.
+if (!extension_loaded('mbstring') || (extension_loaded('mbstring') && ini_get('mbstring.func_overload') == 1))
+{
+	exit('Craft requires the <a href="http://php.net/manual/en/book.mbstring.php" target="_blank">PHP multibyte string</a> extension in order to run. Please talk to your host/IT department about enabling it on your server.');
+}
+
+// omitScriptNameInUrls and usePathInfo tests
+// -----------------------------------------------------------------------------
+
 if ((isset($_SERVER['PATH_INFO']) && $_SERVER['PATH_INFO'] == '/testScriptNameRedirect')
 	|| (isset($_SERVER['QUERY_STRING']) && strpos($_SERVER['QUERY_STRING'], 'testScriptNameRedirect') !== false))
 {
 	exit('success');
 }
 
-// Is this a PATH_INFO test?
 if (isset($_SERVER['PATH_INFO']) && $_SERVER['PATH_INFO'] == '/testPathInfo')
 {
 	exit('success');
 }
 
-// Define app constants
-defined('CRAFT_BASE_PATH')         || define('CRAFT_BASE_PATH', str_replace('\\', '/', realpath(dirname(__FILE__).'/../')).'/');
-defined('CRAFT_APP_PATH')          || define('CRAFT_APP_PATH',          CRAFT_BASE_PATH.'app/');
-defined('CRAFT_CONFIG_PATH')       || define('CRAFT_CONFIG_PATH',       CRAFT_BASE_PATH.'config/');
-defined('CRAFT_PLUGINS_PATH')      || define('CRAFT_PLUGINS_PATH',      CRAFT_BASE_PATH.'plugins/');
-defined('CRAFT_STORAGE_PATH')      || define('CRAFT_STORAGE_PATH',      CRAFT_BASE_PATH.'storage/');
-defined('CRAFT_TEMPLATES_PATH')    || define('CRAFT_TEMPLATES_PATH',    CRAFT_BASE_PATH.'templates/');
-defined('CRAFT_TRANSLATIONS_PATH') || define('CRAFT_TRANSLATIONS_PATH', CRAFT_BASE_PATH.'translations/');
-defined('YII_TRACE_LEVEL')         || define('YII_TRACE_LEVEL', 3);
+// PHP environment normalization
+// -----------------------------------------------------------------------------
 
-// Not using is_executable here, but it's worthless.
-// Check early if storage/ is a valid folder, writable and executable.
-if (($storagePath = realpath(CRAFT_STORAGE_PATH)) === false || !is_dir($storagePath) || !is_writable($storagePath) || !@file_exists($storagePath.'/.'))
+// These have been deprecated in PHP 6 in favor of default_charset, which defaults to 'UTF-8'
+// http://php.net/manual/en/migration56.deprecated.php
+if (PHP_VERSION_ID < 60000)
 {
-	exit('Craft storage path "'.($storagePath === false ? CRAFT_STORAGE_PATH : $storagePath).'" isn&rsquo;t valid. Please make sure it is a folder writable by your web server process.');
+	// Set MB to use UTF-8
+	mb_internal_encoding('UTF-8');
+	mb_http_input('UTF-8');
+	mb_http_output('UTF-8');
 }
 
-// Create the runtime path if it doesn't exist already
-// (code borrowed from IOHelper)
-$runtimePath = CRAFT_STORAGE_PATH.'runtime/';
-if (!is_dir($runtimePath))
-{
-	$oldumask = umask(0);
+mb_detect_order('auto');
 
-	if (!mkdir($runtimePath, 0755, true))
-	{
-		exit('Tried to create a folder at '.$runtimePath.', but could not.');
-	}
+// Normalize how PHP's string methods (strtoupper, etc) behave.
+setlocale(
+	LC_CTYPE,
+	'C.UTF-8',     // libc >= 2.13
+	'C.utf8',      // different spelling
+	'en_US.UTF-8', // fallback to lowest common denominator
+	'en_US.utf8'   // different spelling for fallback
+);
 
-	// Because setting permission with mkdir is a crapshoot.
-	chmod($runtimePath, 0755);
-	umask($oldumask);
-}
+// Set default timezone to UTC
+date_default_timezone_set('UTC');
 
-// Check early if storage/runtime is a valid folder and writable. !@file_exists('/.') is a workaround for the terrible is_executable().
-if (($runtimePath = realpath(CRAFT_STORAGE_PATH.'runtime/')) === false || !is_dir($runtimePath) || !is_writable($runtimePath) || !@file_exists($runtimePath.'/.'))
-{
-	exit('Craft runtime path "'.($runtimePath === false ? CRAFT_STORAGE_PATH.'runtime/' : $runtimePath).'" isn&rsquo;t valid. Please make sure it is a folder writable by your web server process.');
-}
+// Load and run Craft
+// -----------------------------------------------------------------------------
 
-// Check early if config is a valid folder and writable. !@file_exists('/.') is a workaround for the terrible is_executable().
-if (($siteConfigPath = realpath(CRAFT_CONFIG_PATH)) === false || !is_dir($siteConfigPath) || !@file_exists($siteConfigPath.'/.'))
-{
-	exit('Craft config path "'.($siteConfigPath === false ? CRAFT_CONFIG_PATH : $siteConfigPath).'" isn&rsquo;t valid. Please make sure the folder exists and is readable by your web server process.');
-}
-
-$userConfig = require_once CRAFT_CONFIG_PATH.'general.php';
-
-// Set YII_DEBUG to true if we're in devMode.
-if (isset($userConfig['devMode']) && $userConfig['devMode'] == true)
-{
-	define('YII_DEBUG', true);
-}
-
-// In case yiic is running
-if (!class_exists('Yii', false))
-{
-	require_once CRAFT_APP_PATH.'framework/yii.php';
-}
-
-// Disable the PHP include path
-Yii::$enableIncludePath = false;
-
-// Load 'em up
-require_once CRAFT_APP_PATH.'Craft.php';
-require_once CRAFT_APP_PATH.'etc/web/WebApp.php';
-require_once CRAFT_APP_PATH.'Info.php';
-
-$configPath = CRAFT_APP_PATH.'etc/config/main.php';
-
-// Initialize Craft\WebApp this way so it doesn't cause a syntax error on PHP < 5.3
-$appClass = '\Craft\WebApp';
-$app = new $appClass($configPath);
-
+$app = require 'bootstrap.php';
 $app->run();

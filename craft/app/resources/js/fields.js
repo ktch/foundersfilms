@@ -1,18 +1,16 @@
-/*!
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+/**
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
 (function($) {
 
 
-var FieldsAdmin = Garnish.Base.extend({
-
+var FieldsAdmin = Garnish.Base.extend(
+{
 	$groups: null,
 	$selectedGroup: null,
 
@@ -51,7 +49,7 @@ var FieldsAdmin = Garnish.Base.extend({
 
 	addNewGroup: function()
 	{
-		var name = this.promptForGroupName();
+		var name = this.promptForGroupName('');
 
 		if (name)
 		{
@@ -59,16 +57,23 @@ var FieldsAdmin = Garnish.Base.extend({
 				name: name
 			};
 
-			Craft.postActionRequest('fields/saveGroup', data, $.proxy(function(response)
+			Craft.postActionRequest('fields/saveGroup', data, $.proxy(function(response, textStatus)
 			{
-				if (response.success)
+				if (textStatus == 'success')
 				{
-					location.href = Craft.getUrl('settings/fields/'+response.group.id);
-				}
-				else
-				{
-					var errors = this.flattenErrors(response.errors);
-					alert(Craft.t('Could not create the group:')+"\n\n"+errors.join("\n"));
+					if (response.success)
+					{
+						location.href = Craft.getUrl('settings/fields/'+response.group.id);
+					}
+					else if (response.errors)
+					{
+						var errors = this.flattenErrors(response.errors);
+						alert(Craft.t('Could not create the group:')+"\n\n"+errors.join("\n"));
+					}
+					else
+					{
+						Craft.cp.displayError();
+					}
 				}
 
 			}, this));
@@ -87,17 +92,24 @@ var FieldsAdmin = Garnish.Base.extend({
 				name: newName
 			};
 
-			Craft.postActionRequest('fields/saveGroup', data, $.proxy(function(response)
+			Craft.postActionRequest('fields/saveGroup', data, $.proxy(function(response, textStatus)
 			{
-				if (response.success)
+				if (textStatus == 'success')
 				{
-					this.$selectedGroup.text(response.group.name);
-					Craft.cp.displayNotice(Craft.t('Group renamed.'));
-				}
-				else
-				{
-					var errors = this.flattenErrors(response.errors);
-					alert(Craft.t('Could not rename the group:')+"\n\n"+errors.join("\n"));
+					if (response.success)
+					{
+						this.$selectedGroup.text(response.group.name);
+						Craft.cp.displayNotice(Craft.t('Group renamed.'));
+					}
+					else if (response.errors)
+					{
+						var errors = this.flattenErrors(response.errors);
+						alert(Craft.t('Could not rename the group:')+"\n\n"+errors.join("\n"));
+					}
+					else
+					{
+						Craft.cp.displayError();
+					}
 				}
 
 			}, this));
@@ -117,15 +129,18 @@ var FieldsAdmin = Garnish.Base.extend({
 				id: this.$selectedGroup.data('id')
 			};
 
-			Craft.postActionRequest('fields/deleteGroup', data, $.proxy(function(response)
+			Craft.postActionRequest('fields/deleteGroup', data, $.proxy(function(response, textStatus)
 			{
-				if (response.success)
+				if (textStatus == 'success')
 				{
-					location.href = Craft.getUrl('settings/fields');
-				}
-				else
-				{
-					alert(Craft.t('Could not delete the group.'));
+					if (response.success)
+					{
+						location.href = Craft.getUrl('settings/fields');
+					}
+					else
+					{
+						Craft.cp.displayError();
+					}
 				}
 			}, this));
 		}
@@ -137,7 +152,7 @@ var FieldsAdmin = Garnish.Base.extend({
 
 		for (var attribute in responseErrors)
 		{
-			errors = errors.concat(response.errors[attribute]);
+			errors = errors.concat(responseErrors[attribute]);
 		}
 
 		return errors;

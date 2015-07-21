@@ -2,29 +2,63 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class StringHelper
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.helpers
+ * @since     1.0
  */
 class StringHelper
 {
+	// Constants
+	// =========================================================================
+
+	const UTF8 = 'UTF-8';
+
+	// Properties
+	// =========================================================================
+
+	/**
+	 * @var
+	 */
 	private static $_asciiCharMap;
+
+	/**
+	 * @var
+	 */
 	private static $_asciiPunctuation;
+
+	/**
+	 * @var
+	 */
+	private static $_iconv;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * Returns the character at a specific point in a potentially multibyte string.
+	 *
+	 * @param  string $str
+	 * @param  int    $i
+	 *
+	 * @see http://stackoverflow.com/questions/10360764/there-are-simple-way-to-get-a-character-from-multibyte-string-in-php
+	 * @return string
+	 */
+	public static function getCharAt($str, $i)
+	{
+		return mb_substr($str, $i, 1);
+	}
 
 	/**
 	 * Converts an array to a string.
 	 *
-	 * @static
 	 * @param mixed  $arr
 	 * @param string $glue
+	 *
 	 * @return string
 	 */
 	public static function arrayToString($arr, $glue = ',')
@@ -47,10 +81,10 @@ class StringHelper
 	}
 
 	/**
-	 * @static
 	 * @param $value
-	 * @return bool
+	 *
 	 * @throws Exception
+	 * @return bool
 	 */
 	public static function isNullOrEmpty($value)
 	{
@@ -68,10 +102,10 @@ class StringHelper
 	}
 
 	/**
-	 * @static
 	 * @param $value
-	 * @return bool
+	 *
 	 * @throws Exception
+	 * @return bool
 	 */
 	public static function isNotNullOrEmpty($value)
 	{
@@ -79,9 +113,9 @@ class StringHelper
 	}
 
 	/**
-	 * @static
 	 * @param int  $length
 	 * @param bool $extendedChars
+	 *
 	 * @return string
 	 */
 	public static function randomString($length = 36, $extendedChars = false)
@@ -98,7 +132,7 @@ class StringHelper
 		$randomString = '';
 
 		// count the number of chars in the valid chars string so we know how many choices we have
-		$numValidChars = strlen($validChars);
+		$numValidChars = mb_strlen($validChars);
 
 		// repeat the steps until we've created a string of the right length
 		for ($i = 0; $i < $length; $i++)
@@ -117,7 +151,6 @@ class StringHelper
 	}
 
 	/**
-	 * @static
 	 * @return string
 	 */
 	public static function UUID()
@@ -133,8 +166,8 @@ class StringHelper
 			// 16 bits for "time_hi_and_version", four most significant bits holds version number 4
 			mt_rand(0, 0x0fff) | 0x4000,
 
-			// 16 bits, 8 bits for "clk_seq_hi_res", 8 bits for "clk_seq_low",
-			// two most significant bits holds zero and one for variant DCE1.1
+			// 16 bits, 8 bits for "clk_seq_hi_res", 8 bits for "clk_seq_low", two most significant bits holds zero and
+			// one for variant DCE1.1
 			mt_rand(0, 0x3fff) | 0x8000,
 
 			// 48 bits for "node"
@@ -146,6 +179,7 @@ class StringHelper
 	 * Returns is the given string matches a UUID pattern.
 	 *
 	 * @param $uuid
+	 *
 	 * @return bool
 	 */
 	public static function isUUID($uuid)
@@ -154,8 +188,8 @@ class StringHelper
 	}
 
 	/**
-	 * @static
 	 * @param $string
+	 *
 	 * @return mixed
 	 */
 	public static function escapeRegexChars($string)
@@ -174,7 +208,6 @@ class StringHelper
 	/**
 	 * Returns ASCII character mappings.
 	 *
-	 * @static
 	 * @return array
 	 */
 	public static function getAsciiCharMap()
@@ -182,16 +215,17 @@ class StringHelper
 		if (!isset(static::$_asciiCharMap))
 		{
 			static::$_asciiCharMap = array(
-				223 => 'ss', 224 => 'a',  225 => 'a',  226 => 'a',  229 => 'a',
-				227 => 'ae', 230 => 'ae', 228 => 'ae', 231 => 'c',  232 => 'e',
-				233 => 'e',  234 => 'e',  235 => 'e',  236 => 'i',  237 => 'i',
-				238 => 'i',  239 => 'i',  241 => 'n',  242 => 'o',  243 => 'o',
-				244 => 'o',  245 => 'o',  246 => 'oe', 249 => 'u',  250 => 'u',
-				251 => 'u',  252 => 'ue', 255 => 'y',  257 => 'aa', 269 => 'ch',
-				275 => 'ee', 291 => 'gj', 299 => 'ii', 311 => 'kj', 316 => 'lj',
-				326 => 'nj', 353 => 'sh', 363 => 'uu', 382 => 'zh', 256 => 'aa',
-				268 => 'ch', 274 => 'ee', 290 => 'gj', 298 => 'ii', 310 => 'kj',
-				315 => 'lj', 325 => 'nj', 352 => 'sh', 362 => 'uu', 381 => 'zh'
+				216 => 'O',  223 => 'ss', 224 => 'a',  225 => 'a',  226 => 'a',
+				229 => 'a',  227 => 'ae', 230 => 'ae', 228 => 'ae', 231 => 'c',
+				232 => 'e',  233 => 'e',  234 => 'e',  235 => 'e',  236 => 'i',
+				237 => 'i',  238 => 'i',  239 => 'i',  241 => 'n',  242 => 'o',
+				243 => 'o',  244 => 'o',  245 => 'o',  246 => 'oe', 248 => 'o',
+				249 => 'u',  250 => 'u',  251 => 'u',  252 => 'ue', 255 => 'y',
+				257 => 'aa', 269 => 'ch', 275 => 'ee', 291 => 'gj', 299 => 'ii',
+				311 => 'kj', 316 => 'lj', 326 => 'nj', 353 => 'sh', 363 => 'uu',
+				382 => 'zh', 256 => 'aa', 268 => 'ch', 274 => 'ee', 290 => 'gj',
+				298 => 'ii', 310 => 'kj', 315 => 'lj', 325 => 'nj', 337 => 'o',
+				352 => 'sh', 362 => 'uu', 369 => 'u',  381 => 'zh'
 			);
 
 			foreach (craft()->config->get('customAsciiCharMappings') as $ascii => $char)
@@ -206,7 +240,6 @@ class StringHelper
 	/**
 	 * Returns the asciiPunctuation array.
 	 *
-	 * @static
 	 * @return array
 	 */
 	public static function getAsciiPunctuation()
@@ -234,8 +267,8 @@ class StringHelper
 	/**
 	 * Converts extended ASCII characters to ASCII.
 	 *
-	 * @static
 	 * @param string $str
+	 *
 	 * @return string
 	 */
 	public static function asciiString($str)
@@ -244,15 +277,49 @@ class StringHelper
 		$strlen = strlen($str);
 		$asciiCharMap = static::getAsciiCharMap();
 
-		for ($c = 0; $c < $strlen; $c++)
-		{
-			$char = $str[$c];
-			$ascii = ord($char);
+		// Code adapted from http://php.net/ord#109812
+		$offset = 0;
 
+		while ($offset < $strlen)
+		{
+			// ord() doesn't support UTF-8 so we need to do some extra work to determine the ASCII code
+			$ascii = ord(substr($str, $offset, 1));
+
+			if ($ascii >= 128) // otherwise 0xxxxxxx
+			{
+				if ($ascii < 224)
+				{
+					$bytesnumber = 2; // 110xxxxx
+				}
+				else if ($ascii < 240)
+				{
+					$bytesnumber = 3; // 1110xxxx
+				}
+				else if ($ascii < 248)
+				{
+					$bytesnumber = 4; // 11110xxx
+				}
+
+				$tempAscii = $ascii - 192 - ($bytesnumber > 2 ? 32 : 0) - ($bytesnumber > 3 ? 16 : 0);
+
+				for ($i = 2; $i <= $bytesnumber; $i++)
+				{
+					$offset++;
+					$ascii2 = ord(substr($str, $offset, 1)) - 128; // 10xxxxxx
+					$tempAscii = $tempAscii * 64 + $ascii2;
+				}
+
+				$ascii = $tempAscii;
+			}
+
+			$offset++;
+
+			// Is this an ASCII character?
 			if ($ascii >= 32 && $ascii < 128)
 			{
-				$asciiStr .= $char;
+				$asciiStr .= chr($ascii);
 			}
+			// Do we have an ASCII mapping for it?
 			else if (isset($asciiCharMap[$ascii]))
 			{
 				$asciiStr .= $asciiCharMap[$ascii];
@@ -265,9 +332,9 @@ class StringHelper
 	/**
 	 * Normalizes search keywords.
 	 *
-	 * @access private
-	 * @param string  $str The dirty keywords.
+	 * @param string $str    The dirty keywords.
 	 * @param array  $ignore Ignore words to strip out.
+	 *
 	 * @return string The cleansed keywords.
 	 */
 	public static function normalizeKeywords($str, $ignore = array())
@@ -282,13 +349,13 @@ class StringHelper
 		$str = str_replace(array('&nbsp;', '&#160;', '&#xa0;') , ' ', $str);
 
 		// Get rid of entities
-		$str = html_entity_decode($str, ENT_QUOTES, 'UTF-8');
+		$str = html_entity_decode($str, ENT_QUOTES, static::UTF8);
 
 		// Remove punctuation and diacritics
 		$str = strtr($str, static::_getCharMap());
 
 		// Normalize to lowercase
-		$str = function_exists('mb_strtolower') ? mb_strtolower($str, 'UTF-8') : strtolower($str);
+		$str = StringHelper::toLowerCase($str);
 
 		// Remove ignore-words?
 		if (is_array($ignore) && ! empty($ignore))
@@ -296,25 +363,23 @@ class StringHelper
 			foreach ($ignore as $word)
 			{
 				$word = preg_quote(static::_normalizeKeywords($word));
-				$str  = preg_replace("/\b{$word}\b/", '', $str);
+				$str  = preg_replace("/\b{$word}\b/u", '', $str);
 			}
 		}
 
 		// Strip out new lines and superfluous spaces
-		$str = preg_replace('/[\n\r]+/', ' ', $str);
-		$str = preg_replace('/\s{2,}/', ' ', $str);
+		$str = preg_replace('/[\n\r]+/u', ' ', $str);
+		$str = preg_replace('/\s{2,}/u', ' ', $str);
 
-		// Trim white space
-		$str = trim($str);
-
-		return $str;
+		// Trim white space and return
+		return trim($str);
 	}
 
 	/**
 	 * Runs a string through Markdown.
 	 *
-	 * @static
 	 * @param string $str
+	 *
 	 * @return string
 	 */
 	public static function parseMarkdown($str)
@@ -329,9 +394,226 @@ class StringHelper
 	}
 
 	/**
+	 * Attempts to convert a string to UTF-8 and clean any non-valid UTF-8 characters.
+	 *
+	 * @param      $string
+	 *
+	 * @return bool|string
+	 */
+	public static function convertToUTF8($string)
+	{
+		// Don't wrap in a class_exists in case the server already has it's own version of HTMLPurifier and they have
+		// open_basedir restrictions
+		require_once Craft::getPathOfAlias('system.vendors.htmlpurifier').'/HTMLPurifier.standalone.php';
+
+		// If it's already a UTF8 string, just clean and return it
+		if (static::isUTF8($string))
+		{
+			return \HTMLPurifier_Encoder::cleanUTF8($string);
+		}
+
+		// Otherwise set HTMLPurifier to the actual string encoding
+		$config = \HTMLPurifier_Config::createDefault();
+		$config->set('Core.Encoding', static::getEncoding($string));
+
+		// Clean it
+		$string = \HTMLPurifier_Encoder::cleanUTF8($string);
+
+		// Convert it to UTF8 if possible
+		if (static::checkForIconv())
+		{
+			$string = \HTMLPurifier_Encoder::convertToUTF8($string, $config, null);
+		}
+		else
+		{
+			$encoding = static::getEncoding($string);
+			$string = mb_convert_encoding($string, 'utf-8', $encoding);
+		}
+
+		return $string;
+	}
+
+	/**
+	 * Returns whether iconv is installed and not buggy.
+	 *
+	 * @return bool
+	 */
+	public static function checkForIconv()
+	{
+		if (!isset(static::$_iconv))
+		{
+			// Check if iconv is installed. Note we can't just use HTMLPurifier_Encoder::iconvAvailable() because they
+			// don't consider iconv "installed" if it's there but "unusable".
+			if (function_exists('iconv') && \HTMLPurifier_Encoder::testIconvTruncateBug() === \HTMLPurifier_Encoder::ICONV_OK)
+			{
+				static::$_iconv = true;
+			}
+			else
+			{
+				static::$_iconv = false;
+			}
+		}
+
+		return static::$_iconv;
+	}
+
+	/**
+	 * Checks if the given string is UTF-8 encoded.
+	 *
+	 * @param $string The string to check.
+	 *
+	 * @return bool
+	 */
+	public static function isUTF8($string)
+	{
+		return static::getEncoding($string) == 'utf-8' ? true : false;
+	}
+
+	/**
+	 * Gets the current encoding of the given string.
+	 *
+	 * @param string $string
+	 *
+	 * @return string
+	 */
+	public static function getEncoding($string)
+	{
+		return StringHelper::toLowerCase(mb_detect_encoding($string, mb_detect_order(), true));
+	}
+
+	/**
+	 * Returns a multibyte aware upper-case version of a string. Note: Not using mb_strtoupper because of
+	 * {@see https://bugs.php.net/bug.php?id=47742}.
+	 *
+	 * @param string $string
+	 *
+	 * @return string
+	 */
+	public static function toUpperCase($string)
+	{
+		return mb_convert_case($string, MB_CASE_UPPER, static::UTF8);
+	}
+
+	/**
+	 * Returns a multibyte aware lower-case version of a string. Note: Not using mb_strtoupper because of
+	 * {@see https://bugs.php.net/bug.php?id=47742}.
+	 *
+	 * @param string $string
+	 *
+	 * @return string
+	 */
+	public static function toLowerCase($string)
+	{
+		return mb_convert_case($string, MB_CASE_LOWER, static::UTF8);
+	}
+
+	/**
+	 * Uppercases the first character of a multibyte string.
+	 *
+	 * @param string $string The multibyte string.
+	 *
+	 * @return string The string with the first character converted to upercase.
+	 */
+	public static function uppercaseFirst($string)
+	{
+		$strlen = mb_strlen($string, static::UTF8);
+		$firstChar = mb_substr($string, 0, 1, static::UTF8);
+		$remainder = mb_substr($string, 1, $strlen - 1, static::UTF8);
+		return static::toUpperCase($firstChar).$remainder;
+	}
+
+	/**
+	 * Lowercases the first character of a multibyte string.
+	 *
+	 * @param string $string The multibyte string.
+	 *
+	 * @return string The string with the first character converted to lowercase.
+	 */
+	public static function lowercaseFirst($string)
+	{
+		$strlen = mb_strlen($string, static::UTF8);
+		$firstChar = mb_substr($string, 0, 1, static::UTF8);
+		$remainder = mb_substr($string, 1, $strlen - 1, static::UTF8);
+		return static::toLowerCase($firstChar).$remainder;
+	}
+
+	/**
+	 * Kebab-cases a string.
+	 *
+	 * @param string $string The string
+	 * @param string $glue The string used to glue the words together (default is a hyphen)
+	 * @param boolean $lower Whether the string should be lowercased (default is true)
+	 * @param boolean $removePunctuation Whether punctuation marks should be removed (default is true)
+	 *
+	 * @return string
+	 */
+	public static function toKebabCase($string, $glue = '-', $lower = true, $removePunctuation = true)
+	{
+		if ($removePunctuation)
+		{
+			$string = str_replace(array('.', '_', '-'), ' ', $string);
+		}
+
+		// Remove inner-word punctuation.
+		$string = preg_replace('/[\'"‘’“”\[\]\(\)\{\}:]/u', '', $string);
+
+		// Split on the words and then glue it back together
+		$words = self::splitOnWords($string);
+		$string = implode($glue, $words);
+
+		if ($lower)
+		{
+			// Make it lowercase
+			$string = self::toLowerCase($string);
+		}
+
+		return $string;
+	}
+
+	/**
+	 * Splits a string into an array of the words in the string.
+	 *
+	 * @param string $string The string
+	 *
+	 * @return string[]
+	 */
+	public static function splitOnWords($string)
+	{
+		// Split on anything that is not alphanumeric, or a period, underscore, or hyphen.
+		preg_match_all('/[\p{L}\p{N}\._-]+/u', $string, $matches);
+		return ArrayHelper::filterEmptyStringsFromArray($matches[0]);
+	}
+
+	/**
+	 * Strips HTML tags out of a given string.
+	 *
+	 * @param $str The string.
+	 *
+	 * @return string
+	 */
+	public static function stripHtml($str)
+	{
+		return preg_replace('/<(.*?)>/u', '', $str);
+	}
+
+	/**
+	 * Backslash-escapes any commas in a given string.
+	 *
+	 * @param $str The string.
+	 *
+	 * @return string
+	 */
+	public static function escapeCommas($str)
+	{
+		return preg_replace('/(?<!\\\),/', '\,', $str);
+	}
+
+	// Private Methods
+	// =========================================================================
+
+	/**
 	 * Get array of chars to be used for conversion.
 	 *
-	 * @access private
 	 * @return array
 	 */
 	private static function _getCharMap()
@@ -361,12 +643,12 @@ class StringHelper
 	/**
 	 * Custom alternative to chr().
 	 *
-	 * @static
 	 * @param int $int
+	 *
 	 * @return string
 	 */
 	private static function _chr($int)
 	{
-		return html_entity_decode("&#{$int};", ENT_QUOTES, 'UTF-8');
+		return html_entity_decode("&#{$int};", ENT_QUOTES, static::UTF8);
 	}
 }

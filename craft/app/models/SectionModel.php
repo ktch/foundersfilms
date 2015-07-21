@@ -2,50 +2,51 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
  * Section model class
  *
- * Used for transporting section data throughout the system.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
+ * @license   http://buildwithcraft.com/license Craft License Agreement
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.models
+ * @since     1.0
  */
 class SectionModel extends BaseModel
 {
+	// Properties
+	// =========================================================================
+
+	/**
+	 * @var
+	 */
 	private $_locales;
-	private $_fieldLayout;
+
+	/**
+	 * @var
+	 */
+	private $_entryTypes;
+
+	// Public Methods
+	// =========================================================================
 
 	/**
 	 * Use the translated section name as the string representation.
 	 *
 	 * @return string
 	 */
-	function __toString()
+	public function __toString()
 	{
 		return Craft::t($this->name);
 	}
 
 	/**
-	 * @access protected
-	 * @return array
+	 * Returns whether this is the homepage section.
+	 *
+	 * @return bool
 	 */
-	protected function defineAttributes()
+	public function isHomepage()
 	{
-		return array(
-			'id'            => AttributeType::Number,
-			'name'          => AttributeType::String,
-			'handle'        => AttributeType::String,
-			'titleLabel'    => array(AttributeType::String, 'default' => Craft::t('Title')),
-			'hasUrls'       => AttributeType::Bool,
-			'template'      => AttributeType::String,
-			'fieldLayoutId' => AttributeType::Number,
-		);
+		return ($this->type == SectionType::Single && $this->urlFormat == '__home__');
 	}
 
 	/**
@@ -74,6 +75,8 @@ class SectionModel extends BaseModel
 	 * Sets the section's locale models.
 	 *
 	 * @param array $locales
+	 *
+	 * @return null
 	 */
 	public function setLocales($locales)
 	{
@@ -83,8 +86,10 @@ class SectionModel extends BaseModel
 	/**
 	 * Adds locale-specific errors to the model.
 	 *
-	 * @param array $errors
+	 * @param array  $errors
 	 * @param string $localeId
+	 *
+	 * @return null
 	 */
 	public function addLocaleErrors($errors, $localeId)
 	{
@@ -99,35 +104,90 @@ class SectionModel extends BaseModel
 	}
 
 	/**
-	 * Returns the section's field layout.
+	 * Returns the section's entry types.
 	 *
-	 * @return FieldLayoutModel
+	 * @param string|null $indexBy
+	 *
+	 * @return array
 	 */
-	public function getFieldLayout()
+	public function getEntryTypes($indexBy = null)
 	{
-		if (!isset($this->_fieldLayout))
+		if (!isset($this->_entryTypes))
 		{
-			if ($this->fieldLayoutId)
+			if ($this->id)
 			{
-				$this->_fieldLayout = craft()->fields->getLayoutById($this->fieldLayoutId);
+				$this->_entryTypes = craft()->sections->getEntryTypesBySectionId($this->id);
 			}
-
-			if (empty($this->_fieldLayout))
+			else
 			{
-				$this->_fieldLayout = new FieldLayoutModel();
+				$this->_entryTypes = array();
 			}
 		}
 
-		return $this->_fieldLayout;
+		if (!$indexBy)
+		{
+			return $this->_entryTypes;
+		}
+		else
+		{
+			$entryTypes = array();
+
+			foreach ($this->_entryTypes as $entryType)
+			{
+				$entryTypes[$entryType->$indexBy] = $entryType;
+			}
+
+			return $entryTypes;
+		}
 	}
 
 	/**
-	 * Sets the section's field layout.
+	 * Returns the section's URL format (or URL) for the current locale.
 	 *
-	 * @param FieldLayoutModel $fieldLayout
+	 * @return string|null
 	 */
-	public function setFieldLayout(FieldLayoutModel $fieldLayout)
+	public function getUrlFormat()
 	{
-		$this->_fieldLayout = $fieldLayout;
+		$locales = $this->getLocales();
+
+		if ($locales)
+		{
+			$localeIds = array_keys($locales);
+
+			// Does this section target the current locale?
+			if (in_array(craft()->language, $localeIds))
+			{
+				$localeId = craft()->language;
+			}
+			else
+			{
+				$localeId = $localeIds[0];
+			}
+
+			return $locales[$localeId]->urlFormat;
+		}
+	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseModel::defineAttributes()
+	 *
+	 * @return array
+	 */
+	protected function defineAttributes()
+	{
+		return array(
+			'id'                        => AttributeType::Number,
+			'structureId'               => AttributeType::Number,
+			'name'                      => AttributeType::String,
+			'handle'                    => AttributeType::String,
+			'type'                      => array(AttributeType::Enum, 'values' => array(SectionType::Single, SectionType::Channel, SectionType::Structure)),
+			'hasUrls'                   => array(AttributeType::Bool, 'default' => true),
+			'template'                  => AttributeType::String,
+			'maxLevels'                 => AttributeType::Number,
+			'enableVersioning'          => array(AttributeType::Bool, 'default' => true),
+		);
 	}
 }

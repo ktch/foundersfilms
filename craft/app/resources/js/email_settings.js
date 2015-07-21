@@ -1,18 +1,16 @@
-/*!
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+/**
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
 (function($) {
 
 
-var EmailSettingsForm = Garnish.Base.extend({
-
+var EmailSettingsForm = Garnish.Base.extend(
+{
 	$form: null,
 	$protocolField: null,
 	$protocolSelect: null,
@@ -79,18 +77,21 @@ var EmailSettingsForm = Garnish.Base.extend({
 		var data = Garnish.getPostData(this.$form);
 		delete data.action;
 
-		Craft.postActionRequest('systemSettings/testEmailSettings', data, $.proxy(function(response) {
+		Craft.postActionRequest('systemSettings/testEmailSettings', data, $.proxy(function(response, textStatus)
+		{
 			this.$testBtn.removeClass('sel');
 			this.$testSpinner.addClass('hidden');
 
-			if (response.success)
+			if (textStatus == 'success')
 			{
-				alert(Craft.t('Email sent successfully! Check your inbox.'));
-			}
-			else
-			{
-				var error = response.error || Craft.t('An unknown error occurred.');
-				alert(error);
+				if (response.success)
+				{
+					Craft.cp.displayNotice(Craft.t('Email sent successfully! Check your inbox.'));
+				}
+				else
+				{
+					Craft.cp.displayError(response.error);
+				}
 			}
 		}, this));
 	}

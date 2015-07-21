@@ -1,18 +1,16 @@
-/*!
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+/**
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
 (function($) {
 
 
-Craft.QuickPostWidget = Garnish.Base.extend({
-
+Craft.QuickPostWidget = Garnish.Base.extend(
+{
 	params: null,
 	initFields: null,
 	$widget: null,
@@ -27,90 +25,126 @@ Craft.QuickPostWidget = Garnish.Base.extend({
 		this.params = params;
 		this.initFields = initFields;
 		this.$widget = $('#widget'+widgetId);
-		this.$form = this.$widget.find('form:first');
+
+		var $form = this.$widget.find('form:first');
+		this.$formClone = $form.clone();
+		this.initForm($form);
+	},
+
+	initForm: function($form)
+	{
+		this.$form = $form;
 		this.$spinner = this.$form.find('.spinner');
 
-		this.$formClone = this.$form.clone();
-
-		this.initForm();
-	},
-
-	initForm: function()
-	{
-		this.addListener(this.$form, 'submit', 'onSubmit');
 		this.initFields();
+
+		var $menuBtn = this.$form.find('> .buttons > .btngroup > .menubtn'),
+			$saveAndContinueEditingBtn = $menuBtn.next().find('> ul > li > a');
+
+		$menuBtn.menubtn();
+
+		this.addListener(this.$form, 'submit', 'handleFormSubmit');
+		this.addListener($saveAndContinueEditingBtn, 'click', 'saveAndContinueEditing');
 	},
 
-	onSubmit: function(event)
+	handleFormSubmit: function(event)
 	{
 		event.preventDefault();
 
-		if (this.loading) return;
+		this.save($.proxy(this, 'onSave'));
+	},
+
+	saveAndContinueEditing: function()
+	{
+		this.save($.proxy(this, 'gotoEntry'));
+	},
+
+	save: function(callback)
+	{
+		if (this.loading)
+		{
+			return;
+		}
+
 		this.loading = true;
 		this.$spinner.removeClass('hidden');
 
 		var formData = Garnish.getPostData(this.$form),
 			data = $.extend({ enabled: 1 }, formData, this.params);
 
-		Craft.postActionRequest('entries/saveEntry', data, $.proxy(function(response) {
+		Craft.postActionRequest('entries/saveEntry', data, $.proxy(function(response, textStatus)
+		{
+			this.loading = false;
+			this.$spinner.addClass('hidden');
+
 			if (this.$errorList)
 			{
 				this.$errorList.children().remove();
 			}
 
-			if (response.success)
+			if (textStatus == 'success')
 			{
-				Craft.cp.displayNotice(Craft.t('Entry saved.'));
-
-				// Reset the widget
-				var $newForm = this.$formClone.clone();
-				this.$form.replaceWith($newForm);
-				this.$form = $newForm;
-				this.initForm();
-
-				// Are there any Recent Entries widgets to notify?
-				if (typeof Craft.RecentEntriesWidget != 'undefined')
+				if (response.success)
 				{
-					for (var i = 0; i < Craft.RecentEntriesWidget.instances.length; i++)
-					{
-						var widget = Craft.RecentEntriesWidget.instances[i];
-						if (!widget.params.sectionId || widget.params.sectionId == this.params.sectionId)
-						{
-							widget.addEntry({
-								url:      response.cpEditUrl,
-								title:    response.entry.title,
-								postDate: response.postDate,
-								username: response.author.username
-							});
-						}
-					}
+					Craft.cp.displayNotice(Craft.t('Entry saved.'));
+					callback(response);
 				}
-			}
-			else
-			{
-				Craft.cp.displayError(Craft.t('Couldn’t save entry.'));
-
-				if (response.errors)
+				else
 				{
-					if (!this.$errorList)
-					{
-						this.$errorList = $('<ul class="errors"/>').insertAfter(this.$form);
-					}
+					Craft.cp.displayError(Craft.t('Couldn’t save entry.'));
 
-					for (var attribute in response.errors)
+					if (response.errors)
 					{
-						for (var i = 0; i < response.errors[attribute].length; i++)
+						if (!this.$errorList)
 						{
-							var error = response.errors[attribute][i];
-							$('<li>'+error+'</li>').appendTo(this.$errorList);
+							this.$errorList = $('<ul class="errors"/>').insertAfter(this.$form);
+						}
+
+						for (var attribute in response.errors)
+						{
+							for (var i = 0; i < response.errors[attribute].length; i++)
+							{
+								var error = response.errors[attribute][i];
+								$('<li>'+error+'</li>').appendTo(this.$errorList);
+							}
 						}
 					}
 				}
 			}
 
-			this.loading = false;
-			this.$spinner.addClass('hidden');
 		}, this));
+	},
+
+	onSave: function(response)
+	{
+		// Reset the widget
+		var $newForm = this.$formClone.clone();
+		this.$form.replaceWith($newForm);
+		this.initForm($newForm);
+
+		// Are there any Recent Entries widgets to notify?
+		if (typeof Craft.RecentEntriesWidget != 'undefined')
+		{
+			for (var i = 0; i < Craft.RecentEntriesWidget.instances.length; i++)
+			{
+				var widget = Craft.RecentEntriesWidget.instances[i];
+				if (!widget.params.sectionId || widget.params.sectionId == this.params.sectionId)
+				{
+					widget.addEntry({
+						url:      response.cpEditUrl,
+						title:    response.title,
+						postDate: response.postDate,
+						username: response.author.username
+					});
+				}
+			}
+		}
+	},
+
+	gotoEntry: function(response)
+	{
+		// Redirect to the entry's edit URL
+		Craft.redirectTo(response.cpEditUrl);
 	}
 });
 

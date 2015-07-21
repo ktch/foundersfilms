@@ -2,20 +2,20 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Widget template variable.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Widget template variable
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.variables
+ * @since     1.0
  */
 class WidgetTypeVariable extends BaseComponentTypeVariable
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
 	 * Returns the widget's title.
 	 *
@@ -27,9 +27,19 @@ class WidgetTypeVariable extends BaseComponentTypeVariable
 	}
 
 	/**
-	 * Gets the widget's body HTML.
+	 * Returns the widget's colspan.
 	 *
-	 * @return string
+	 * @return int
+	 */
+	public function getColspan()
+	{
+		return $this->component->getColspan();
+	}
+
+	/**
+	 * Returns the widget's body HTML.
+	 *
+	 * @return string|false
 	 */
 	public function getBodyHtml()
 	{

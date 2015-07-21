@@ -2,85 +2,117 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * EntriesService provides APIs for managing entries in Craft.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * An instance of EntriesService is globally accessible in Craft via {@link WebApp::entries `craft()->entries`}.
+ *
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.services
+ * @since     1.0
  */
 class EntriesService extends BaseApplicationComponent
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
-	 * Returns tags by a given entry ID.
+	 * Returns an entry by its ID.
 	 *
-	 * @param $entryId
-	 * @return array
+	 * ```php
+	 * $entry = craft()->entries->getEntryById($entryId);
+	 * ```
+	 *
+	 * @param int    $entryId  The entry’s ID.
+	 * @param string $localeId The locale to fetch the entry in. Defaults to {@link WebApp::language `craft()->language`}.
+	 *
+	 * @return EntryModel|null The entry with the given ID, or `null` if an entry could not be found.
 	 */
-	public function getTagsByEntryId($entryId)
+	public function getEntryById($entryId, $localeId = null)
 	{
-		$tags = array();
-
-		$entryRecord = EntryRecord::model()->findById($entryId);
-		$entryTagRecords = $this->_getTagsForEntry($entryRecord);
-
-		foreach ($entryTagRecords as $record)
-		{
-			$tags[] = $record->name;
-		}
-
-		return $tags;
+		return craft()->elements->getElementById($entryId, ElementType::Entry, $localeId);
 	}
 
 	/**
-	 * Saves an entry.
+	 * Saves a new or existing entry.
 	 *
-	 * @param EntryModel $entry
-	 * @throws Exception
-	 * @return bool
+	 * ```php
+	 * $entry = new EntryModel();
+	 * $entry->sectionId = 10;
+	 * $entry->typeId    = 1;
+	 * $entry->authorId  = 5;
+	 * $entry->enabled   = true;
+	 *
+	 * $entry->getContent()->title = "Hello World!";
+	 *
+	 * $entry->setContentFromPost(array(
+	 *     'body' => "<p>I can’t believe I literally just called this “Hello World!”.</p>",
+	 * ));
+	 *
+	 * $success = craft()->entries->saveEntry($entry);
+	 *
+	 * if (!$success)
+	 * {
+	 *     Craft::log('Couldn’t save the entry "'.$entry->title.'"', LogLevel::Error);
+	 * }
+	 * ```
+	 *
+	 * @param EntryModel $entry The entry to be saved.
+	 *
+	 * @throws \Exception
+	 * @return bool Whether the entry was saved successfully.
 	 */
 	public function saveEntry(EntryModel $entry)
 	{
 		$isNewEntry = !$entry->id;
 
-		// Entry data
+		$hasNewParent = $this->_checkForNewParent($entry);
+
+		if ($hasNewParent)
+		{
+			if ($entry->parentId)
+			{
+				$parentEntry = $this->getEntryById($entry->parentId, $entry->locale);
+
+				if (!$parentEntry)
+				{
+					throw new Exception(Craft::t('No entry exists with the ID “{id}”.', array('id' => $entry->parentId)));
+				}
+			}
+			else
+			{
+				$parentEntry = null;
+			}
+
+			$entry->setParent($parentEntry);
+		}
+
+		// Get the entry record
 		if (!$isNewEntry)
 		{
-			$entryRecord = EntryRecord::model()->with('element', 'entryTagEntries')->findById($entry->id);
+			$entryRecord = EntryRecord::model()->findById($entry->id);
 
 			if (!$entryRecord)
 			{
-				throw new Exception(Craft::t('No entry exists with the ID “{id}”', array('id' => $entry->id)));
-			}
-
-			$elementRecord = $entryRecord->element;
-
-			// if entry->sectionId is null and there is an entryRecord sectionId, we assume this is a front-end edit.
-			if ($entry->sectionId === null && $entryRecord->sectionId)
-			{
-				$entry->sectionId = $entryRecord->sectionId;
+				throw new Exception(Craft::t('No entry exists with the ID “{id}”.', array('id' => $entry->id)));
 			}
 		}
 		else
 		{
 			$entryRecord = new EntryRecord();
-
-			$elementRecord = new ElementRecord();
-			$elementRecord->type = ElementType::Entry;
 		}
 
+		// Get the section
 		$section = craft()->sections->getSectionById($entry->sectionId);
 
 		if (!$section)
 		{
-			throw new Exception(Craft::t('No section exists with the ID “{id}”', array('id' => $entry->sectionId)));
+			throw new Exception(Craft::t('No section exists with the ID “{id}”.', array('id' => $entry->sectionId)));
 		}
 
+		// Verify that the section is available in this locale
 		$sectionLocales = $section->getLocales();
 
 		if (!isset($sectionLocales[$entry->locale]))
@@ -88,10 +120,23 @@ class EntriesService extends BaseApplicationComponent
 			throw new Exception(Craft::t('The section “{section}” is not enabled for the locale {locale}', array('section' => $section->name, 'locale' => $entry->locale)));
 		}
 
+		// Set the entry data
+		$entryType = $entry->getType();
+
 		$entryRecord->sectionId  = $entry->sectionId;
-		$entryRecord->authorId   = $entry->authorId;
-		$entryRecord->postDate   = $entry->postDate;
-		$entryRecord->expiryDate = $entry->expiryDate;
+
+		if ($section->type == SectionType::Single)
+		{
+			$entryRecord->authorId   = $entry->authorId = null;
+			$entryRecord->expiryDate = $entry->expiryDate = null;
+		}
+		else
+		{
+			$entryRecord->authorId   = $entry->authorId;
+			$entryRecord->postDate   = $entry->postDate;
+			$entryRecord->expiryDate = $entry->expiryDate;
+			$entryRecord->typeId     = $entryType->id;
+		}
 
 		if ($entry->enabled && !$entryRecord->postDate)
 		{
@@ -102,172 +147,220 @@ class EntriesService extends BaseApplicationComponent
 		$entryRecord->validate();
 		$entry->addErrors($entryRecord->getErrors());
 
-		$elementRecord->enabled = $entry->enabled;
-		$elementRecord->validate();
-		$entry->addErrors($elementRecord->getErrors());
-
-		// Entry locale data
-		if ($entry->id)
+		if ($entry->hasErrors())
 		{
-			$entryLocaleRecord = EntryLocaleRecord::model()->findByAttributes(array(
-				'entryId' => $entry->id,
-				'locale'  => $entry->locale
+			return false;
+		}
+
+		if (!$entryType->hasTitleField)
+		{
+			$entry->getContent()->title = craft()->templates->renderObjectTemplate($entryType->titleFormat, $entry);
+		}
+
+		$transaction = craft()->db->getCurrentTransaction() === null ? craft()->db->beginTransaction() : null;
+
+		try
+		{
+			// Fire an 'onBeforeSaveEntry' event
+			$event = new Event($this, array(
+				'entry'      => $entry,
+				'isNewEntry' => $isNewEntry
 			));
 
-			// if entry->slug is null and there is an entryLocaleRecord slug, we assume this is a front-end edit.
-			if ($entry->slug === null && $entryLocaleRecord->slug)
+			$this->onBeforeSaveEntry($event);
+
+			// Is the event giving us the go-ahead?
+			if ($event->performAction)
 			{
-				$entry->slug = $entryLocaleRecord->slug;
-			}
-		}
+				// Save the element
+				$success = craft()->elements->saveElement($entry);
 
-		if (empty($entryLocaleRecord))
-		{
-			$entryLocaleRecord = new EntryLocaleRecord();
-			$entryLocaleRecord->sectionId = $entry->sectionId;
-			$entryLocaleRecord->locale    = $entry->locale;
-		}
-
-		$entryLocaleRecord->title = $entry->title;
-
-		if ($entryLocaleRecord->isNewRecord() || $entry->slug != $entryLocaleRecord->slug)
-		{
-			$this->_generateEntrySlug($entry);
-			$entryLocaleRecord->slug = $entry->slug;
-		}
-
-		$entryLocaleRecord->validate();
-		$entry->addErrors($entryLocaleRecord->getErrors());
-
-		// Element locale data
-		if ($entry->id)
-		{
-			$elementLocaleRecord = ElementLocaleRecord::model()->findByAttributes(array(
-				'elementId' => $entry->id,
-				'locale'    => $entry->locale
-			));
-		}
-
-		if (empty($elementLocaleRecord))
-		{
-			$elementLocaleRecord = new ElementLocaleRecord();
-			$elementLocaleRecord->locale = $entry->locale;
-		}
-
-		if ($section->hasUrls && $entry->enabled)
-		{
-			// Make sure the section's URL format is valid. This shouldn't be possible due to section validation,
-			// but it's not enforced by the DB, so anything is possible.
-			$urlFormat = $sectionLocales[$entry->locale]->urlFormat;
-
-			if (!$urlFormat || strpos($urlFormat, '{slug}') === false)
-			{
-				throw new Exception(Craft::t('The section “{section}” doesn’t have a valid URL Format.', array(
-					'section' => Craft::t($section->name)
-				)));
-			}
-
-			$elementLocaleRecord->uri = craft()->templates->renderObjectTemplate($urlFormat, $entry);
-		}
-		else
-		{
-			$elementLocaleRecord->uri = null;
-		}
-
-		$elementLocaleRecord->validate();
-		$entry->addErrors($elementLocaleRecord->getErrors());
-
-		// Entry content
-		$content = craft()->content->populateContentFromPost($entry, $section->getFieldLayout(), $entry->locale);
-		$content->validate();
-		$entry->addErrors($content->getErrors());
-
-		// Tags
-		$entryTagRecords = $this->_processTags($entry, $entryRecord);
-		$tagErrors = $this->_validateEntryTagRecords($entryTagRecords);
-		$entry->addErrors($tagErrors);
-
-		if (!$entry->hasErrors())
-		{
-			// Save the element record first
-			$elementRecord->save(false);
-
-			// Now that we have an element ID, save it on the other stuff
-			if (!$entry->id)
-			{
-				$entry->id = $elementRecord->id;
-				$entryRecord->id = $entry->id;
-			}
-
-			$entryRecord->save(false);
-
-			$entryLocaleRecord->entryId = $entry->id;
-			$elementLocaleRecord->elementId = $entry->id;
-			$content->elementId = $entry->id;
-
-			// Save the other records
-			$entryLocaleRecord->save(false);
-			$elementLocaleRecord->save(false);
-			craft()->content->saveContent($content, false);
-
-			// Update the search index
-			craft()->search->indexElementAttributes($entry, $entry->locale);
-
-			// If we have any tags to process
-			if (!empty($entryTagRecords))
-			{
-				// Create any of the new tag records first.
-				if (isset($entryTagRecords['new']))
+				// If it didn't work, rollback the transaction in case something changed in onBeforeSaveEntry
+				if (!$success)
 				{
-					foreach ($entryTagRecords['new'] as $newEntryTagRecord)
+					if ($transaction !== null)
 					{
-						$newEntryTagRecord->save(false);
+						$transaction->rollback();
 					}
+
+					// If "title" has an error, check if they've defined a custom title label.
+					if ($entry->getError('title'))
+					{
+						// Grab all of the original errors.
+						$errors = $entry->getErrors();
+
+						// Grab just the title error message.
+						$originalTitleError = $errors['title'];
+
+						// Clear the old.
+						$entry->clearErrors();
+
+						// Create the new "title" error message.
+						$errors['title'] = str_replace(Craft::t('Title'), $entryType->titleLabel, $originalTitleError);
+
+						// Add all of the errors back on the model.
+						$entry->addErrors($errors);
+					}
+
+					return false;
 				}
 
-				// Add any tags to the entry.
-				if (isset($entryTagRecords['add']))
+				// Now that we have an element ID, save it on the other stuff
+				if ($isNewEntry)
 				{
-					foreach ($entryTagRecords['add'] as $addEntryTagRecord)
-					{
-						$entryTagEntryRecord = new EntryTagEntryRecord();
-						$entryTagEntryRecord->tagId = $addEntryTagRecord->id;
-						$entryTagEntryRecord->entryId = $elementRecord->id;
-						$entryTagEntryRecord->save(false);
-
-						$this->_updateTagCount($addEntryTagRecord);
-					}
+					$entryRecord->id = $entry->id;
 				}
 
-				// Process any tags that need to be removed from the entry.
-				if (isset($entryTagRecords['delete']))
-				{
-					foreach ($entryTagRecords['delete'] as $deleteEntryTagRecord)
-					{
-						EntryTagEntryRecord::model()->deleteAllByAttributes(array(
-							'tagId'   => $deleteEntryTagRecord->id,
-							'entryId' => $elementRecord->id
-						));
+				// Save the actual entry row
+				$entryRecord->save(false);
 
-						$this->_updateTagCount($deleteEntryTagRecord);
+				if ($section->type == SectionType::Structure)
+				{
+					// Has the parent changed?
+					if ($hasNewParent)
+					{
+						if (!$entry->parentId)
+						{
+							craft()->structures->appendToRoot($section->structureId, $entry);
+						}
+						else
+						{
+							craft()->structures->append($section->structureId, $entry, $parentEntry);
+						}
 					}
+
+					// Update the entry's descendants, who may be using this entry's URI in their own URIs
+					craft()->elements->updateDescendantSlugsAndUris($entry, true, true);
+				}
+
+				// Save a new version
+				if (craft()->getEdition() >= Craft::Client && $section->enableVersioning)
+				{
+					craft()->entryRevisions->saveVersion($entry);
 				}
 			}
-
-			// Save a new version
-			if (Craft::hasPackage(CraftPackage::PublishPro))
+			else
 			{
-				craft()->entryRevisions->saveVersion($entry);
+				$success = false;
 			}
 
-			// Perform some post-save operations
-			craft()->content->postSaveOperations($entry, $content);
+			// Commit the transaction regardless of whether we saved the entry, in case something changed
+			// in onBeforeSaveEntry
+			if ($transaction !== null)
+			{
+				$transaction->commit();
+			}
+		}
+		catch (\Exception $e)
+		{
+			if ($transaction !== null)
+			{
+				$transaction->rollback();
+			}
 
+			throw $e;
+		}
+
+		if ($success)
+		{
 			// Fire an 'onSaveEntry' event
 			$this->onSaveEntry(new Event($this, array(
 				'entry'      => $entry,
 				'isNewEntry' => $isNewEntry
 			)));
+		}
+
+		return $success;
+	}
+
+	/**
+	 * Deletes an entry(s).
+	 *
+	 * @param EntryModel|EntryModel[] $entries An entry, or an array of entries, to be deleted.
+	 *
+	 * @throws \Exception
+	 * @return bool Whether the entry deletion was successful.
+	 */
+	public function deleteEntry($entries)
+	{
+		if (!$entries)
+		{
+			return false;
+		}
+
+		$transaction = craft()->db->getCurrentTransaction() === null ? craft()->db->beginTransaction() : null;
+
+		try
+		{
+			if (!is_array($entries))
+			{
+				$entries = array($entries);
+			}
+
+			$entryIds = array();
+
+			foreach ($entries as $entry)
+			{
+				// Fire an 'onBeforeDeleteEntry' event
+				$event = new Event($this, array(
+					'entry' => $entry
+				));
+
+				$this->onBeforeDeleteEntry($event);
+
+				if ($event->performAction)
+				{
+					$section = $entry->getSection();
+
+					if ($section->type == SectionType::Structure)
+					{
+						// First let's move the entry's children up a level, so this doesn't mess up the structure
+						$children = $entry->getChildren()->status(null)->localeEnabled(false)->limit(null)->find();
+
+						foreach ($children as $child)
+						{
+							craft()->structures->moveBefore($section->structureId, $child, $entry, 'update', true);
+						}
+					}
+
+					$entryIds[] = $entry->id;
+				}
+			}
+
+			if ($entryIds)
+			{
+				// Delete 'em
+				$success = craft()->elements->deleteElementById($entryIds);
+			}
+			else
+			{
+				$success = false;
+			}
+
+			if ($transaction !== null)
+			{
+				$transaction->commit();
+			}
+		}
+		catch (\Exception $e)
+		{
+			if ($transaction !== null)
+			{
+				$transaction->rollback();
+			}
+
+			throw $e;
+		}
+
+		if ($success)
+		{
+			foreach ($entries as $entry)
+			{
+				// Fire an 'onDeleteEntry' event
+				$this->onDeleteEntry(new Event($this, array(
+					'entry' => $entry
+				)));
+			}
 
 			return true;
 		}
@@ -278,265 +371,145 @@ class EntriesService extends BaseApplicationComponent
 	}
 
 	/**
+	 * Deletes an entry(s) by its ID.
+	 *
+	 * @param int|array $entryId The ID of an entry to delete, or an array of entry IDs.
+	 *
+	 * @return bool Whether the entry deletion was successful.
+	 */
+	public function deleteEntryById($entryId)
+	{
+		if (!$entryId)
+		{
+			return false;
+		}
+
+		$criteria = craft()->elements->getCriteria(ElementType::Entry);
+		$criteria->id = $entryId;
+		$criteria->limit = null;
+		$criteria->status = null;
+		$criteria->localeEnabled = false;
+		$entries = $criteria->find();
+
+		if ($entries)
+		{
+			return $this->deleteEntry($entries);
+		}
+		else
+		{
+			return false;
+		}
+	}
+
+	// Events
+	// -------------------------------------------------------------------------
+
+	/**
+	 * Fires an 'onBeforeSaveEntry' event.
+	 *
+	 * @param Event $event
+	 *
+	 * @return null
+	 */
+	public function onBeforeSaveEntry(Event $event)
+	{
+		$this->raiseEvent('onBeforeSaveEntry', $event);
+	}
+
+	/**
 	 * Fires an 'onSaveEntry' event.
 	 *
 	 * @param Event $event
+	 *
+	 * @return null
 	 */
 	public function onSaveEntry(Event $event)
 	{
 		$this->raiseEvent('onSaveEntry', $event);
 	}
 
-	// Private methods
-	// ===============
+	/**
+	 * Fires an 'onBeforeDeleteEntry' event.
+	 *
+	 * @param Event $event
+	 *
+	 * @return null
+	 */
+	public function onBeforeDeleteEntry(Event $event)
+	{
+		$this->raiseEvent('onBeforeDeleteEntry', $event);
+	}
 
 	/**
-	 * Generates an entry slug based on its title.
+	 * Fires an 'onDeleteEntry' event.
 	 *
-	 * @access private
+	 * @param Event $event
+	 *
+	 * @return null
+	 */
+	public function onDeleteEntry(Event $event)
+	{
+		$this->raiseEvent('onDeleteEntry', $event);
+	}
+
+	// Private Methods
+	// =========================================================================
+
+	/**
+	 * Checks if an entry was submitted with a new parent entry selected.
+	 *
 	 * @param EntryModel $entry
-	 */
-	private function _generateEntrySlug(EntryModel $entry)
-	{
-		$slug = ($entry->slug ? $entry->slug : $entry->title);
-
-		// Remove HTML tags
-		$slug = preg_replace('/<(.*?)>/', '', $slug);
-
-		// Remove apostrophes
-		$slug = str_replace(array('\'', '’'), array('', ''), $slug);
-
-		// Make it lowercase
-		$slug = strtolower($slug);
-
-		// Convert extended ASCII characters to basic ASCII
-		$slug = StringHelper::asciiString($slug);
-
-		// Slug must start and end with alphanumeric characters
-		$slug = preg_replace('/^[^a-z0-9]+/', '', $slug);
-		$slug = preg_replace('/[^a-z0-9]+$/', '', $slug);
-
-		// Get the "words"
-		$words = preg_split('/[^a-z0-9]+/', $slug);
-		$words = ArrayHelper::filterEmptyStringsFromArray($words);
-		$slug = implode('-', $words);
-
-		if ($slug)
-		{
-			// Make it unique
-			$conditions = array('and', 'sectionId = :sectionId', 'locale = :locale', 'slug = :slug');
-			$params = array(':sectionId' => $entry->sectionId, ':locale' => $entry->locale);
-
-			if ($entry->id)
-			{
-				$conditions[] = 'id != :entryId';
-				$params[':entryId'] = $entry->id;
-			}
-
-			for ($i = 0; true; $i++)
-			{
-				$testSlug = $slug.($i != 0 ? "-{$i}" : '');
-				$params[':slug'] = $testSlug;
-
-				$totalEntries = craft()->db->createCommand()
-					->select('count(id)')
-					->from('entries_i18n')
-					->where($conditions, $params)
-					->queryScalar();
-
-				if ($totalEntries == 0)
-				{
-					break;
-				}
-			}
-
-			$entry->slug = $testSlug;
-		}
-		else
-		{
-			$entry->slug = '';
-		}
-	}
-
-	/**
-	 * Keeps the given $entryTagRecord->count column up-to-date with the number of entries using that tag.
 	 *
-	 * @param EntryTagRecord $entryTagRecord
+	 * @return bool
 	 */
-	private function _updateTagCount(EntryTagRecord $entryTagRecord)
+	private function _checkForNewParent(EntryModel $entry)
 	{
-		$criteria = new \CDbCriteria();
-		$criteria->addCondition('tagId =:tagId');
-		$criteria->params[':tagId'] = $entryTagRecord->id;
-		$tagCount = EntryTagEntryRecord::model()->count($criteria);
-
-		// If the count is zero, let's delete the entryTagRecord.
-		if ($tagCount == 0)
+		// Make sure this is a Structure section
+		if ($entry->getSection()->type != SectionType::Structure)
 		{
-			$entryTagRecord->delete();
-		}
-		else
-		{
-			$entryTagRecord->count = $tagCount;
-			$entryTagRecord->save(false);
-		}
-	}
-
-	/**
-	 * Checks to see if there are any tag validation errors.  If so, returns them.
-	 *
-	 * @param $entryTagRecords
-	 * @return array
-	 */
-	private function _validateEntryTagRecords($entryTagRecords)
-	{
-		$errors = array();
-
-		foreach ($entryTagRecords as $entryTagRecordActions)
-		{
-			foreach ($entryTagRecordActions as $entryTagRecord)
-			{
-				if (!$entryTagRecord->validate())
-				{
-					$errors[] = $entryTagRecord->getErrors();
-				}
-			}
+			return false;
 		}
 
-		return $errors;
-	}
-
-	/**
-	 * Processes any tags on the EntryModel for the given EntryRecord.  Will generate a list of tags that need to be
-	 * added, updated or deleted for an entry.
-	 *
-	 * @param EntryModel  $entry
-	 * @param EntryRecord $entryRecord
-	 * @return array
-	 */
-	private function _processTags(EntryModel $entry, EntryRecord $entryRecord)
-	{
-		$entryTagRecords = array();
-
-		// Get the entries' current EntryTags
-		$currentEntryTagRecords = $this->_getTagsForEntry($entryRecord);
-
-		// See if any tags have even changed for this entry.
-		if (count($currentEntryTagRecords) == count($entry->tags))
+		// Is it a brand new entry?
+		if (!$entry->id)
 		{
-			$identical = true;
-
-			foreach ($currentEntryTagRecords as $currentEntryTagRecord)
-			{
-				if (!preg_grep("/{$currentEntryTagRecord->name}/i", $entry->tags))
-				{
-					// Something is different.
-					$identical = false;
-					break;
-				}
-			}
-
-			if ($identical)
-			{
-				// Identical, so just return the empty array.
-				return $entryTagRecords;
-			}
+			return true;
 		}
 
-		// Process the new entry tags.
-		foreach ($entry->tags as $newEntryTag)
+		// Was a parentId actually submitted?
+		if ($entry->parentId === null)
 		{
-			foreach ($currentEntryTagRecords as $currentEntryTagRecord)
-			{
-				// The current entry already has this tag assigned to it... skip.
-				if (strtolower($currentEntryTagRecord->name) == strtolower($newEntryTag))
-				{
-					// Try the next $newEntryTag
-					continue 2;
-				}
-			}
-
-			// If we make it here, then we know the tag is new for this entry because it doesn't exist in $currentEntryTagRecords
-			// Make sure the tag exists at all, if not create the record.
-			if (($entryTagRecord = $this->_getEntryTagRecordByName($newEntryTag)) == null)
-			{
-				$entryTagRecord = new EntryTagRecord();
-				$entryTagRecord->name = $newEntryTag;
-				$entryTagRecord->count = 1;
-
-				// Keep track of the new tag records.
-				$entryTagRecords['new'][] = $entryTagRecord;
-			}
-
-			// Keep track of the tags we'll need to add to the entry.
-			$entryTagRecords['add'][] = $entryTagRecord;
+			return false;
 		}
 
-		// Now check for deleted tags from the entry.
-		foreach ($currentEntryTagRecords as $currentEntryTagRecord)
+		// Is it set to the top level now, but it hadn't been before?
+		if ($entry->parentId === '' && $entry->level != 1)
 		{
-			foreach ($entry->tags as $newEntryTag)
-			{
-				if (strtolower($currentEntryTagRecord->name) == strtolower($newEntryTag))
-				{
-					// Try the next $currentEntryTagRecord
-					continue 2;
-				}
-			}
-
-			// If we made it here, then we know the tag was removed from the entry.
-			$entryTagRecords['delete'][] = $currentEntryTagRecord;
+			return true;
 		}
 
-		return $entryTagRecords;
-	}
-
-	/**
-	 * Given an entry, will return an array of EntryTagRecords associated with the entry.
-	 *
-	 * @param EntryRecord $entryRecord
-	 * @return array
-	 */
-	private function _getTagsForEntry(EntryRecord $entryRecord)
-	{
-		$currentEntryTagRecords = array();
-		$entryTagEntries = $entryRecord->entryTagEntries;
-
-		foreach ($entryTagEntries as $entryTagEntry)
+		// Is it set to be under a parent now, but didn't have one before?
+		if ($entry->parentId !== '' && $entry->level == 1)
 		{
-			if (($currentEntryTagRecord = $this->_getEntryTagRecordById($entryTagEntry->tagId)) !== null)
-			{
-				$currentEntryTagRecords[] = $currentEntryTagRecord;
-			}
+			return true;
 		}
 
-		return $currentEntryTagRecords;
-	}
+		// Is the parentId set to a different entry ID than its previous parent?
+		$criteria = craft()->elements->getCriteria(ElementType::Entry);
+		$criteria->ancestorOf = $entry;
+		$criteria->ancestorDist = 1;
+		$criteria->status = null;
+		$criteria->localeEnabled = null;
 
-	/**
-	 * Returns an EntryTagRecord with the given tag name.
-	 *
-	 * @param $tagName
-	 * @return EntryTagRecord
-	 */
-	private function _getEntryTagRecordByName($tagName)
-	{
-		$entryTagRecord = EntryTagRecord::model()->findByAttributes(
-			array('name' => $tagName)
-		);
+		$oldParent = $criteria->first();
+		$oldParentId = ($oldParent ? $oldParent->id : '');
 
-		return $entryTagRecord;
-	}
+		if ($entry->parentId != $oldParentId)
+		{
+			return true;
+		}
 
-	/**
-	 * Returns an EntryTagRecord with the given ID.
-	 *
-	 * @param $id
-	 * @return EntryTagRecord
-	 */
-	private function _getEntryTagRecordById($id)
-	{
-		$entryTagRecord = EntryTagRecord::model()->findByPk($id);
-		return $entryTagRecord;
+		// Must be set to the same one then
+		return false;
 	}
 }

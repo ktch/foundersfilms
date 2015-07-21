@@ -2,176 +2,244 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * The AssetsController class is a controller that handles various actions related to asset tasks, such as uploading
+ * files and creating/deleting/renaming files and folders.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Handles asset tasks
- * TODO: Permissions?
+ * Note that all actions in the controller except {@link actionGenerateTransform} require an authenticated Craft session
+ * via {@link BaseController::allowAnonymous}.
+ *
+ * @author     Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright  Copyright (c) 2014, Pixel & Tonic, Inc.
+ * @license    http://buildwithcraft.com/license Craft License Agreement
+ * @see        http://buildwithcraft.com
+ * @package    craft.app.controllers
+ * @since      1.0
+ * @deprecated This class will have several breaking changes in Craft 3.0.
  */
 class AssetsController extends BaseController
 {
-	protected $allowAnonymous = array('actionGenerateTransform');
+	// Properties
+	// =========================================================================
 
 	/**
-	 * Saves the asset field layout.
+	 * If set to false, you are required to be logged in to execute any of the given controller's actions.
+	 *
+	 * If set to true, anonymous access is allowed for all of the given controller's actions.
+	 *
+	 * If the value is an array of action names, then you must be logged in for any action method except for the ones in
+	 * the array list.
+	 *
+	 * If you have a controller that where the majority of action methods will be anonymous, but you only want require
+	 * login on a few, it's best to use {@link UserSessionService::requireLogin() craft()->userSession->requireLogin()}
+	 * in the individual methods.
+	 *
+	 * @var bool
 	 */
-	public function actionSaveFieldLayout()
-	{
-		$this->requirePostRequest();
-		craft()->userSession->requireAdmin();
+	protected $allowAnonymous = array('actionGenerateTransform');
 
-		// Set the field layout
-		$fieldLayout = craft()->fields->assembleLayoutFromPost(false);
-		$fieldLayout->type = ElementType::Asset;
-		craft()->fields->deleteLayoutsByType(ElementType::Asset);
-
-		if (craft()->fields->saveLayout($fieldLayout, false))
-		{
-			craft()->userSession->setNotice(Craft::t('Asset fields saved.'));
-			$this->redirectToPostedUrl();
-		}
-		else
-		{
-			craft()->userSession->setError(Craft::t('Couldn’t save asset fields.'));
-		}
-	}
+	// Public Methods
+	// =========================================================================
 
 	/**
 	 * Upload a file
+	 *
+	 * @return null
 	 */
 	public function actionUploadFile()
 	{
 		$this->requireAjaxRequest();
-		$folderId = craft()->request->getQuery('folderId');
+		$folderId = craft()->request->getPost('folderId');
 
 		// Conflict resolution data
 		$userResponse = craft()->request->getPost('userResponse');
-		$responseInfo = craft()->request->getPost('additionalInfo');
+		$theNewFileId = craft()->request->getPost('newFileId', 0);
 		$fileName = craft()->request->getPost('fileName');
 
-		$response = craft()->assets->uploadFile($folderId, $userResponse, $responseInfo, $fileName);
+		// For a conflict resolution, the folder ID is no longer there and no file is actually being uploaded
+		if (!empty($folderId) && empty($userResponse))
+		{
+			try
+			{
+				$this->_checkUploadPermissions($folderId);
+			}
+			catch (Exception $e)
+			{
+				$this->returnErrorJson($e->getMessage());
+			}
+		}
+
+		$response = craft()->assets->uploadFile($folderId, $userResponse, $theNewFileId, $fileName);
 
 		$this->returnJson($response->getResponseData());
 	}
 
 	/**
-	 * View a folder
+	 * Uploads a file directly to a field for an entry.
+	 *
+	 * @throws Exception
+	 * @return null
 	 */
-	public function actionViewFolder()
+	public function actionExpressUpload()
 	{
 		$this->requireAjaxRequest();
+		$fieldId = craft()->request->getPost('fieldId');
+		$elementId = craft()->request->getPost('elementId');
 
-		$requestId = craft()->request->getPost('requestId', 0);
-		$folderId = craft()->request->getRequiredPost('folderId');
-		$viewType = craft()->request->getPost('viewType', 'thumbs');
-		$orderBy = craft()->request->getPost('orderBy', 'filename');
-		$sortOrder = craft()->request->getPost('sortOrder', 'ASC');
-		$keywords = array_filter(explode(" ", (string) craft()->request->getPost('keywords')));
-		$searchType = craft()->request->getPost('searchMode');
-		$offset = craft()->request->getPost('offset', 0);
-
-		$parameters = array(
-			'offset' => $offset,
-			'keywords' => $keywords,
-			'order' => $orderBy . ' ' . $sortOrder,
-			'sortOrder' => $sortOrder
-		);
-
-		$folder = craft()->assets->getFolderById($folderId);
-
-		$additionalFolderIds = array();
-		if ($searchType == 'deep')
+		if (empty($_FILES['files']) || !isset($_FILES['files']['error'][0]) || $_FILES['files']['error'][0] != 0)
 		{
-			$additionalFolderIds = array_keys(craft()->assets->getAllChildFolders($folder));
+			throw new Exception(Craft::t('The upload failed.'));
 		}
 
-		$files = craft()->assets->getFilesByFolderId(array_merge(array($folderId), $additionalFolderIds), $parameters);
+		$field = craft()->fields->populateFieldType(craft()->fields->getFieldById($fieldId));
 
+		if (!($field instanceof AssetsFieldType))
+		{
+			throw new Exception(Craft::t('That is not an Assets field.'));
+		}
 
-		$subfolders = craft()->assets->findFolders(array(
-			'parentId' => $folderId
-		));
+		if ($elementId)
+		{
+			$field->element = craft()->elements->getElementById($elementId);
+		}
 
-		$html = craft()->templates->render('assets/_views/folder_contents',
-			array(
-				'folder' => $folder,
-				'subfolders' => $subfolders,
-				'view' => $viewType,
-				'files' => $files,
-				'orderBy' => $orderBy,
-				'sort' => $sortOrder,
-				'elementType' => new ElementTypeVariable(craft()->elements->getElementType(ElementType::Asset))
-			)
-		);
+		$targetFolderId = $field->resolveSourcePath();
 
-		$this->returnJson(array(
-			'requestId' => $requestId,
-			'html' => $html,
-			'total' => count($files)
-		));
+		try
+		{
+			$this->_checkUploadPermissions($targetFolderId);
+		}
+		catch (Exception $e)
+		{
+			$this->returnErrorJson($e->getMessage());
+		}
+
+		$fileName = $_FILES['files']['name'][0];
+		$fileLocation = AssetsHelper::getTempFilePath(pathinfo($fileName, PATHINFO_EXTENSION));
+		move_uploaded_file($_FILES['files']['tmp_name'][0], $fileLocation);
+
+		$response = craft()->assets->insertFileByLocalPath($fileLocation, $fileName, $targetFolderId, AssetConflictResolution::KeepBoth);
+
+		IOHelper::deleteFile($fileLocation, true);
+
+		if ($response->isError())
+		{
+			$this->returnErrorJson($response->getAttribute('errorMessage'));
+		}
+
+		$fileId = $response->getDataItem('fileId');
+
+		// Render and return
+		$element = craft()->elements->getElementById($fileId);
+		$html = craft()->templates->render('_elements/element', array('element' => $element));
+		$headHtml = craft()->templates->getHeadHtml();
+
+		$this->returnJson(array('html' => $html, 'headHtml' => $headHtml));
 	}
 
 	/**
-	 * View a file's content.
+	 * Replace a file
+	 *
+	 * @throws Exception
+	 * @return null
 	 */
-	public function actionViewFile()
+	public function actionReplaceFile()
 	{
-		$this->requireLogin();
 		$this->requireAjaxRequest();
+		$fileId = craft()->request->getPost('fileId');
 
-		$requestId = craft()->request->getPost('requestId', 0);
-		$fileId = craft()->request->getRequiredPost('fileId');
-		$file = craft()->assets->getFileById($fileId);
-
-		if (!$file)
+		try
 		{
-			throw new Exception(Craft::t('No asset exists with the ID “{id}”.', array('id' => $fileId)));
+			if (empty($_FILES['replaceFile']) || !isset($_FILES['replaceFile']['error']) || $_FILES['replaceFile']['error'] != 0)
+			{
+				throw new Exception(Craft::t('The upload failed.'));
+			}
+
+			$existingFile = craft()->assets->getFileById($fileId);
+
+			if (!$existingFile)
+			{
+				throw new Exception(Craft::t('The file to be replaced cannot be found.'));
+			}
+
+			$targetFolderId = $existingFile->folderId;
+
+			try
+			{
+				$this->_checkUploadPermissions($targetFolderId);
+			}
+			catch (Exception $e)
+			{
+				$this->returnErrorJson($e->getMessage());
+			}
+
+			// Fire an 'onBeforeReplaceFile' event
+			$event = new Event($this, array(
+				'asset' => $existingFile
+			));
+
+			craft()->assets->onBeforeReplaceFile($event);
+
+			// Is the event preventing this from happening?
+			if (!$event->performAction)
+			{
+				throw new Exception(Craft::t('The file could not be replaced.'));
+			}
+
+			$fileName = AssetsHelper::cleanAssetName($_FILES['replaceFile']['name']);
+			$fileLocation = AssetsHelper::getTempFilePath(pathinfo($fileName, PATHINFO_EXTENSION));
+			move_uploaded_file($_FILES['replaceFile']['tmp_name'], $fileLocation);
+
+			$response = craft()->assets->insertFileByLocalPath($fileLocation, $fileName, $targetFolderId, AssetConflictResolution::KeepBoth);
+			$insertedFileId = $response->getDataItem('fileId');
+
+			$newFile = craft()->assets->getFileById($insertedFileId);
+
+			if ($newFile && $existingFile)
+			{
+				$source = craft()->assetSources->populateSourceType($newFile->getSource());
+
+				if (StringHelper::toLowerCase($existingFile->filename) == StringHelper::toLowerCase($fileName))
+				{
+					$filenameToUse = $existingFile->filename;
+				}
+				else
+				{
+					// If the file uploaded had to resolve a conflict, grab the final filename
+					if ($response->getDataItem('filename'))
+					{
+						$filenameToUse = $response->getDataItem('filename');
+					}
+					else
+					{
+						$filenameToUse = $fileName;
+					}
+				}
+
+				$source->replaceFile($existingFile, $newFile, $filenameToUse);
+				IOHelper::deleteFile($fileLocation, true);
+			}
+			else
+			{
+				throw new Exception(Craft::t('Something went wrong with the replace operation.'));
+			}
+		}
+		catch (Exception $exception)
+		{
+			$this->returnErrorJson($exception->getMessage());
 		}
 
-		$html = craft()->templates->render('assets/_views/file', array(
-			'file' => $file
-		));
+		// Fire an 'onReplaceFile' event
+		craft()->assets->onReplaceFile(new Event($this, array(
+			'asset' => $existingFile
+		)));
 
-		$this->returnJson(array(
-			'requestId' => $requestId,
-			'headHtml' => craft()->templates->getHeadHtml(),
-			'bodyHtml' => $html,
-			'footHtml' => craft()->templates->getFootHtml(),
-		));
-	}
-
-	/**
-	 * Save a file's content.
-	 */
-	public function actionSaveFileContent()
-	{
-		$this->requireLogin();
-		$this->requireAjaxRequest();
-
-		$fileId = craft()->request->getRequiredPost('fileId');
-		$file = craft()->assets->getFileById($fileId);
-
-		if (!$file)
-		{
-			throw new Exception(Craft::t('No asset exists with the ID “{id}”.', array('id' => $fileId)));
-		}
-
-		$fields = craft()->request->getPost('fields', array());
-		$file->setContent($fields);
-
-		$success = craft()->assets->saveFileContent($file);
-		$this->returnJson(array('success' => $success));
+		$this->returnJson(array('success' => true, 'fileId' => $fileId));
 	}
 
 	/**
 	 * Create a folder.
+	 *
+	 * @return null
 	 */
 	public function actionCreateFolder()
 	{
@@ -180,6 +248,15 @@ class AssetsController extends BaseController
 		$parentId = craft()->request->getRequiredPost('parentId');
 		$folderName = craft()->request->getRequiredPost('folderName');
 
+		try
+		{
+			craft()->assets->checkPermissionByFolderIds($parentId, 'createSubfoldersInAssetSource');
+		}
+		catch (Exception $e)
+		{
+			$this->returnErrorJson($e->getMessage());
+		}
+
 		$response = craft()->assets->createFolder($parentId, $folderName);
 
 		$this->returnJson($response->getResponseData());
@@ -187,13 +264,25 @@ class AssetsController extends BaseController
 
 	/**
 	 * Delete a folder.
+	 *
+	 * @return null
 	 */
 	public function actionDeleteFolder()
 	{
 		$this->requireLogin();
 		$this->requireAjaxRequest();
 		$folderId = craft()->request->getRequiredPost('folderId');
-		$response = craft()->assets->deleteFolder($folderId);
+
+		try
+		{
+			craft()->assets->checkPermissionByFolderIds($folderId, 'removeFromAssetSource');
+		}
+		catch (Exception $e)
+		{
+			$this->returnErrorJson($e->getMessage());
+		}
+
+		$response = craft()->assets->deleteFolderById($folderId);
 
 		$this->returnJson($response->getResponseData());
 
@@ -201,6 +290,8 @@ class AssetsController extends BaseController
 
 	/**
 	 * Rename a folder
+	 *
+	 * @return null
 	 */
 	public function actionRenameFolder()
 	{
@@ -210,6 +301,16 @@ class AssetsController extends BaseController
 		$folderId = craft()->request->getRequiredPost('folderId');
 		$newName = craft()->request->getRequiredPost('newName');
 
+		try
+		{
+			craft()->assets->checkPermissionByFolderIds($folderId, 'removeFromAssetSource');
+			craft()->assets->checkPermissionByFolderIds($folderId, 'createSubfoldersInAssetSource');
+		}
+		catch (Exception $e)
+		{
+			$this->returnErrorJson($e->getMessage());
+		}
+
 		$response = craft()->assets->renameFolder($folderId, $newName);
 
 		$this->returnJson($response->getResponseData());
@@ -217,6 +318,8 @@ class AssetsController extends BaseController
 
 	/**
 	 * Delete a file or multiple files.
+	 *
+	 * @return null
 	 */
 	public function actionDeleteFile()
 	{
@@ -224,19 +327,42 @@ class AssetsController extends BaseController
 		$this->requireAjaxRequest();
 		$fileIds = craft()->request->getRequiredPost('fileId');
 
+		try
+		{
+			craft()->assets->checkPermissionByFileIds($fileIds, 'removeFromAssetSource');
+		}
+		catch (Exception $e)
+		{
+			$this->returnErrorJson($e->getMessage());
+		}
+
 		$response = craft()->assets->deleteFiles($fileIds);
 		$this->returnJson($response->getResponseData());
 	}
 
 	/**
 	 * Move a file or multiple files.
+	 *
+	 * @return null
 	 */
 	public function actionMoveFile()
 	{
+		$this->requireLogin();
+
 		$fileIds = craft()->request->getRequiredPost('fileId');
 		$folderId = craft()->request->getRequiredPost('folderId');
 		$fileName = craft()->request->getPost('fileName');
 		$actions = craft()->request->getPost('action');
+
+		try
+		{
+			craft()->assets->checkPermissionByFileIds($fileIds, 'removeFromAssetSource');
+			craft()->assets->checkPermissionByFolderIds($folderId, 'uploadToAssetSource');
+		}
+		catch (Exception $e)
+		{
+			$this->returnErrorJson($e->getMessage());
+		}
 
 		$response = craft()->assets->moveFiles($fileIds, $folderId, $fileName, $actions);
 		$this->returnJson($response->getResponseData());
@@ -244,12 +370,27 @@ class AssetsController extends BaseController
 
 	/**
 	 * Move a folder.
+	 *
+	 * @return null
 	 */
 	public function actionMoveFolder()
 	{
+		$this->requireLogin();
+
 		$folderId = craft()->request->getRequiredPost('folderId');
 		$parentId = craft()->request->getRequiredPost('parentId');
 		$action = craft()->request->getPost('action');
+
+		try
+		{
+			craft()->assets->checkPermissionByFolderIds($folderId, 'removeFromAssetSource');
+			craft()->assets->checkPermissionByFolderIds($parentId, 'uploadToAssetSource');
+			craft()->assets->checkPermissionByFolderIds($parentId, 'createSubfoldersInAssetSource');
+		}
+		catch (Exception $e)
+		{
+			$this->returnErrorJson($e->getMessage());
+		}
 
 		$response = craft()->assets->moveFolder($folderId, $parentId, $action);
 
@@ -258,42 +399,82 @@ class AssetsController extends BaseController
 
 	/**
 	 * Generate a transform.
+	 *
+	 * @throws HttpException
+	 * @return null
 	 */
 	public function actionGenerateTransform()
 	{
-		$this->requirePostRequest();
-		$this->requireAjaxRequest();
+		$transformId = craft()->request->getQuery('transformId');
+		$returnUrl = (bool) craft()->request->getPost('returnUrl', false);
 
-		$transformId = craft()->request->getRequiredPost('transformId');
-
-		$transformIndexModel = craft()->assetTransforms->getTransformIndexModelById($transformId);
-
-		if (!$transformIndexModel)
+		// If transform Id was not passed in, see if file id and handle were.
+		if (empty($transformId))
 		{
-			throw new Exception(Craft::t('No asset image transform exists with the ID “{id}”', array('id' => $transformId)));
-		}
-
-		if ($transformIndexModel->inProgress)
-		{
-			echo 'working';
-			craft()->end();
+			$fileId = craft()->request->getPost('fileId');
+			$handle = craft()->request->getPost('handle');
+			$fileModel = craft()->assets->getFileById($fileId);
+			$transformIndexModel = craft()->assetTransforms->getTransformIndex($fileModel, $handle);
 		}
 		else
 		{
-			if (!$transformIndexModel->fileExists)
-			{
-				$transformIndexModel->inProgress = 1;
-				craft()->assetTransforms->storeTransformIndexData($transformIndexModel);
+			$transformIndexModel = craft()->assetTransforms->getTransformIndexModelById($transformId);
+		}
 
-				craft()->assetTransforms->generateTransform($transformIndexModel);
+		try
+		{
+			$url = craft()->assetTransforms->ensureTransformUrlByIndexModel($transformIndexModel);
+		}
+		catch (Exception $exception)
+		{
+			throw new HttpException(404, $exception->getMessage());
+		}
 
-				$transformIndexModel->inProgress = 0;
-				$transformIndexModel->fileExists = 1;
-				craft()->assetTransforms->storeTransformIndexData($transformIndexModel);
-			}
+		if ($returnUrl)
+		{
+			$this->returnJson(array('url' => $url));
+		}
 
-			echo 'success:'.craft()->assetTransforms->getUrlforTransformByIndexId($transformId);
-			craft()->end();
+		$this->redirect($url, true, 302);
+		craft()->end();
+	}
+
+	/**
+	 * Get information about available transforms.
+	 *
+	 * @return null
+	 */
+	public function actionGetTransformInfo()
+	{
+		$this->requireAjaxRequest();
+		$transforms = craft()->assetTransforms->getAllTransforms();
+		$output = array();
+		foreach ($transforms as $transform)
+		{
+			$output[] = (object) array('id' => $transform->id, 'handle' => HtmlHelper::encode($transform->handle), 'name' => HtmlHelper::encode($transform->name));
+		}
+
+		$this->returnJson($output);
+	}
+
+	// Private Methods
+	// =========================================================================
+
+	/**
+	 * Check upload permissions.
+	 *
+	 * @param $folderId
+	 *
+	 * @return null
+	 */
+	private function _checkUploadPermissions($folderId)
+	{
+		$folder = craft()->assets->getFolderById($folderId);
+
+		// if folder exists and the source ID is null, it's a temp source and we always allow uploads there.
+		if (!(is_object($folder) && is_null($folder->sourceId)))
+		{
+			craft()->assets->checkPermissionByFolderIds($folderId, 'uploadToAssetSource');
 		}
 	}
 }

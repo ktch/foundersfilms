@@ -1,24 +1,36 @@
 @charset "UTF-8";
-#loading { margin-top: 50px !important; text-align: center; }
+/* RTL stuff */
+#main #graphic { display: block; margin: 200px auto 0; }
 
-#update-all, #updates, #no-system-updates, #system-updates, #no-plugin-updates, #update-error, #plugin-updates { display: none; }
+#main #graphic.error { background-image: url(../images/error.png); }
 
-#updates .critical { margin-left: 5px; padding: 2px 5px; color: #fff; background: #d6301a; }
+#main #graphic.success { background-image: url(../images/success.png); }
 
-#updates td.notes { border-top: none; padding-bottom: 15px; }
+#main #status { margin: 20px auto 250px; text-align: center; font-size: 16px; line-height: 20px; color: #666; }
 
-#updates td.notes th { border: none; padding: 12px 0; }
+#main h2.heading { margin: 0; padding: 6px 0; }
+body.ltr #main h2.heading { float: left; }
+body.rtl #main h2.heading { float: right; }
 
-#updates td.notes td { border: none; padding-top: 3px; padding-bottom: 3px; vertical-align: top; }
+#main .buttons { margin: 0; }
+body.ltr #main .buttons { float: right; }
+body.rtl #main .buttons { float: left; }
 
-#updates td.notes td:first-child { padding-left: 25px; }
+#main hr { clear: both; margin: 30px -30px; }
 
-#updates td.notes .category { display: block; margin: -1px 0; border-radius: 2px; padding: 1px 7px; text-align: center; color: #fff; -webkit-box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); box-shadow: 0 1px 2px rgba(0, 0, 0, 0.2); }
+#main .critical { border-radius: 2px; padding: 2px 5px; font-weight: normal; color: #fff; background: #d6301a; }
+body.ltr #main .critical { margin-left: 5px; }
+body.rtl #main .critical { margin-right: 5px; }
 
-#updates td.notes .category.added { background: #555; }
+#main .release { direction: ltr; }
 
-#updates td.notes .category.improved { background: #5286d9; }
+/* Keep this LTR since the actual release notes are only LTR */
+#main .release ul li { padding: 3px 0 3px 25px; }
 
-#updates td.notes .category.fixed { background: #da5a47; }
+#main .release ul li:before { font-family: 'Craft'; speak: none; -webkit-font-feature-settings: "liga", "dlig"; -moz-font-feature-settings: "liga=1, dlig=1"; -moz-font-feature-settings: "liga", "dlig"; -ms-font-feature-settings: "liga", "dlig"; -o-font-feature-settings: "liga", "dlig"; font-feature-settings: "liga", "dlig"; text-rendering: optimizeLegibility; font-weight: normal; font-variant: normal; text-transform: none; line-height: 1; width: 1em; -webkit-font-smoothing: antialiased; -moz-osx-font-smoothing: grayscale; display: inline-block; text-align: center; font-style: normal; vertical-align: middle; word-wrap: normal !important; -webkit-user-select: none; -moz-user-select: none; -ms-user-select: none; float: left; margin: 1px 0 1px -23px; font-size: 16px; }
 
-#update-error { padding-top: 120px; }
+#main .release ul li.added:before { content: 'wand'; color: #5286d9; }
+
+#main .release ul li.improved:before { content: 'brush'; }
+
+#main .release ul li.fixed:before { content: 'screwdriver'; color: #da5a47; }

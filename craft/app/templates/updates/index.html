@@ -4,7 +4,10 @@
 {% set title = "Updates"|t %}
 {% includeCssResource "css/updates.css" %}
 {% includeJsResource "js/updates.js" %}
+{% includeJs 'new Craft.UpdateInfo();' %}
 {% includeTranslations
+	"You’ve got updates!",
+	"You’re all up-to-date!",
 	"build {build}",
 	"Critical",
 	"Update",
@@ -14,7 +17,6 @@
 	"Seriously, download.",
 	"Seriously, update.",
 	"Install",
-	"{packages} upgrades",
 	"{app} update required",
 	"Added",
 	"Improved",
@@ -23,22 +25,7 @@
 %}
 
 
-{% set content %}
-	<div id="loading">
-		<div class="spinner big"></div>
-		<p>{{ "Checking for updates…"|t }}</p>
-	</div>
-
-	<div id="updates">
-		<h2>{{ "System"|t }}</h2>
-		<p id="no-system-updates">{{ "No system updates are available."|t }}</p>
-
-		<table id="system-updates" class="data">
-			<tbody>
-			</tbody>
-		</table>
-
-	</div>
-
-	<div id="update-error"></div>
-{% endset %}
+{% block main %}
+	<div id="graphic" class="spinner big"></div>
+	<div id="status">{{ "Checking for updates…"|t }}</div>
+{% endblock %}

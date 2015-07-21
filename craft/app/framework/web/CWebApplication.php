@@ -4,7 +4,7 @@
  *
  * @author Qiang Xue <qiang.xue@gmail.com>
  * @link http://www.yiiframework.com/
- * @copyright Copyright &copy; 2008-2011 Yii Software LLC
+ * @copyright 2008-2013 Yii Software LLC
  * @license http://www.yiiframework.com/license/
  */
 
@@ -82,7 +82,7 @@ class CWebApplication extends CApplication
 	 *      'class'=>'path.to.PostController',
 	 *      'pageTitle'=>'something new',
 	 *   ),
-	 *   'user'=>'path.to.UserController',,
+	 *   'user'=>'path.to.UserController',
 	 * )
 	 * </pre>
 	 *
@@ -344,12 +344,12 @@ class CWebApplication extends CApplication
 				$controllerID.='/';
 			$className=ucfirst($id).'Controller';
 			$classFile=$basePath.DIRECTORY_SEPARATOR.$className.'.php';
-			// Begin Hack - We need a case insensitive way to check if the file exists.
-			if(($classFile = Blocks\IOHelper::fileExists($classFile, true)) !== false)
+
+			if($owner->controllerNamespace!==null)
+				$className=$owner->controllerNamespace.'\\'.str_replace('/','\\',$controllerID).$className;
+
+			if(is_file($classFile))
 			{
-				 // Prepend the Blocks namespace to the className.
-				$className = 'Blocks\\'.$className;
-				// End Hack
 				if(!class_exists($className,false))
 					require($classFile);
 				if(class_exists($className,false) && is_subclass_of($className,'CController'))

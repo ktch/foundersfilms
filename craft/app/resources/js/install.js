@@ -1,17 +1,16 @@
-/*!
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+/**
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
 (function($) {
 
-Craft.Installer = Garnish.Base.extend({
-
+Craft.Installer = Garnish.Base.extend(
+{
+	$bg: null,
 	$screens: null,
 	$currentScreen: null,
 
@@ -25,6 +24,7 @@ Craft.Installer = Garnish.Base.extend({
 	*/
 	init: function()
 	{
+		this.$bg = $('#bg');
 		this.$screens = Garnish.$bod.children('.modal');
 
 		this.addListener($('#beginbtn'), 'activate', 'showAccountScreen');
@@ -67,8 +67,8 @@ Craft.Installer = Garnish.Base.extend({
 
 	showInstallScreen: function()
 	{
-		this.showScreen(3, $.proxy(function() {
-
+		this.showScreen(3, $.proxy(function()
+		{
 			var inputs = ['username', 'email', 'password', 'siteName', 'siteUrl', 'locale'];
 
 			var data = {};
@@ -81,20 +81,48 @@ Craft.Installer = Garnish.Base.extend({
 				data[input] = Garnish.getInputPostVal($input);
 			}
 
-			Craft.postActionRequest('install/install', data, $.proxy(this, 'allDone'));
+			Craft.postActionRequest('install/install', data, $.proxy(this, 'allDone'), {
+				complete: $.noop
+			});
 
 		}, this));
 	},
 
-	allDone: function()
+	allDone: function(response, textStatus)
 	{
-		this.$currentScreen.find('h1:first').text(Craft.t('All done!'));
-		var $buttons = $('<div class="buttons"><a href="'+Craft.getUrl('dashboard')+'" class="btn big submit">'+Craft.t('Go to Craft')+'</a></div>');
-		$('#spinner').replaceWith($buttons);
+		if (textStatus == 'success' && response.success)
+		{
+			this.$currentScreen.find('h1:first').text(Craft.t('All done!'));
+
+			var $buttons = $('<div class="buttons"/>'),
+				$go = $('<div class="btn big submit">'+Craft.t('Go to Craft')+'</div>').appendTo($buttons);
+
+			$('#spinner').replaceWith($buttons);
+
+			this.addListener($go, 'click', function() {
+				this.showScreen(30, null, 1000);
+
+				setTimeout(function() {
+					window.location.href = Craft.getUrl('dashboard');
+				}, Craft.Installer.duration);
+			});
+		}
+		else
+		{
+			this.$currentScreen.find('h1:first').text('Oops.');
+		}
 	},
 
-	showScreen: function(i, callback)
+	showScreen: function(i, callback, bgDuration)
 	{
+		if (!bgDuration)
+		{
+			bgDuration = Craft.Installer.duration;
+		}
+
+		// Slide the BG
+		this.$bg.velocity({ left: '-'+(i*5)+'%' }, bgDuration);
+
 		// Slide out the old screen
 		var windowWidth = Garnish.$win.width(),
 			centeredLeftPos = Math.floor(windowWidth / 2);
@@ -103,18 +131,17 @@ Craft.Installer = Garnish.Base.extend({
 		{
 			this.$currentScreen
 				.css('left', centeredLeftPos)
-				.animate({
-					left: -730
-				});
+				.velocity({ left: -400 }, Craft.Installer.duration);
 		}
 
 		// Slide in the new screen
 		this.$currentScreen = $(this.$screens[i-1])
 			.css({
 				display: 'block',
-				left: windowWidth + 370
+				left: windowWidth + 400
 			})
-			.animate({left: centeredLeftPos}, $.proxy(function() {
+			.velocity({ left: centeredLeftPos }, Craft.Installer.duration, $.proxy(function()
+			{
 				// Relax the screen
 				this.$currentScreen.css('left', '50%');
 
@@ -150,41 +177,48 @@ Craft.Installer = Garnish.Base.extend({
 			data[input] = Garnish.getInputPostVal($input);
 		}
 
-		Craft.postActionRequest(action, data, $.proxy(function(response) {
-			if (response.validates)
-				callback();
-			else
-			{
-				for (var input in response.errors)
-				{
-					var errors = response.errors[input],
-						$input = $('#'+input),
-						$field = $input.closest('.field'),
-						$ul = $('<ul class="errors"/>').appendTo($field);
-
-					for (var i = 0; i < errors.length; i++)
-					{
-						var error = errors[i];
-						$('<li>'+error+'</li>').appendTo($ul);
-					}
-
-					if (!$input.is(':focus'))
-					{
-						$input.addClass('error');
-						($.proxy(function($input) {
-							this.addListener($input, 'focus', function() {
-								$input.removeClass('error');
-								this.removeListener($input, 'focus');
-							});
-						}, this))($input);
-					}
-				}
-
-				Garnish.shake(this.$currentScreen);
-			}
-
+		Craft.postActionRequest(action, data, $.proxy(function(response, textStatus)
+		{
 			this.loading = false;
 			$submitBtn.removeClass('sel loading');
+
+			if (textStatus == 'success')
+			{
+				if (response.validates)
+				{
+					callback();
+				}
+				else
+				{
+					for (var input in response.errors)
+					{
+						var errors = response.errors[input],
+							$input = $('#'+input),
+							$field = $input.closest('.field'),
+							$ul = $('<ul class="errors"/>').appendTo($field);
+
+						for (var i = 0; i < errors.length; i++)
+						{
+							var error = errors[i];
+							$('<li>'+error+'</li>').appendTo($ul);
+						}
+
+						if (!$input.is(':focus'))
+						{
+							$input.addClass('error');
+							($.proxy(function($input) {
+								this.addListener($input, 'focus', function() {
+									$input.removeClass('error');
+									this.removeListener($input, 'focus');
+								});
+							}, this))($input);
+						}
+					}
+
+					Garnish.shake(this.$currentScreen);
+				}
+			}
+
 		}, this));
 	},
 
@@ -192,9 +226,12 @@ Craft.Installer = Garnish.Base.extend({
 	{
 		setTimeout($.proxy(function() {
 			this.$currentScreen.find('input:first').focus();
-		}, this), 300);
+		}, this), Craft.Installer.duration);
 	}
 
+},
+{
+	duration: 300
 });
 
 Garnish.$win.on('load', function() {

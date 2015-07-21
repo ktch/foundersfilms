@@ -1,15 +1,13 @@
-/*!
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+/**
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
-Craft.FeedWidget = Garnish.Base.extend({
-
+Craft.FeedWidget = Garnish.Base.extend(
+{
 	$widget: null,
 
 	init: function(widgetId, url, limit)
@@ -22,24 +20,29 @@ Craft.FeedWidget = Garnish.Base.extend({
 			limit: limit
 		};
 
-		Craft.postActionRequest('dashboard/getFeedItems', data, $.proxy(function(response) {
-			var $tds = this.$widget.find('td');
+		Craft.postActionRequest('dashboard/getFeedItems', data, $.proxy(function(response, textStatus)
+		{
+			this.$widget.removeClass('loading');
 
-			for (var i = 0; i < response.items.length; i++)
+			if (textStatus == 'success')
 			{
-				var item = response.items[i],
-					$td = $($tds[i]);
+				var $tds = this.$widget.find('td');
 
-				var widgetHtml = '<a href="'+item.permalink+'" target="_blank">'+item.title+'</a> ';
+				for (var i = 0; i < response.items.length; i++)
+				{
+					var item = response.items[i],
+						$td = $($tds[i]);
 
-				if (item.date) {
-					widgetHtml += '<span class="light nowrap">'+item.date+'</span>';
+					var widgetHtml = '<a href="'+item.permalink+'" target="_blank">'+item.title+'</a> ';
+
+					if (item.date) {
+						widgetHtml += '<span class="light nowrap">'+item.date+'</span>';
+					}
+
+					$td.html(widgetHtml);
 				}
-
-				$td.html(widgetHtml);
 			}
 
-			this.$widget.removeClass('loading');
 		}, this));
 	}
 });

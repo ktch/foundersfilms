@@ -1,8 +1,8 @@
-{% requirePackage 'Rebrand' %}
+{% requireEdition CraftClient %}
+{% requireAdmin %}
 
 {% extends "_layouts/cp" %}
 {% set title = "Email Settings"|t %}
-
 
 {% set tabs = {
 	settings: { label: "Settings"|t, url: url('settings/email') },

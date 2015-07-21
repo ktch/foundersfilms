@@ -2,38 +2,94 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class Et
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.etc.et
+ * @since     1.0
  */
-
-	/**
-	 * The `$options` parameter takes an associative array with the following
-	 * options:
-	 *
-	 * - `timeout`: How long should we wait for a response? (integer, seconds, default: 10)
-	 * - `useragent`: Useragent to send to the server (string, default: php-requests/$version)
-	 * - `follow_redirects`: Should we follow 3xx redirects? (boolean, default: true)
-	 * - `redirects`: How many times should we redirect before erroring? (integer, default: 10)
-	 * - `blocking`: Should we block processing on this request? (boolean, default: true)
-	 * - `filename`: File to stream the body to instead. (string|boolean, default: false)
-	 * - `auth`: Authentication handler or array of user/password details to use for Basic authentication (RequestsAuth|array|boolean, default: false)
-	 * - `idn`: Enable IDN parsing (boolean, default: true)
-	 * - `transport`: Custom transport. Either a class name, or a transport object. Defaults to the first working transport from {@see getTransport()} (string|RequestsTransport, default: {@see getTransport()})
-	 *
-	 */
 class Et
 {
-	private $_endpoint;
-	private $_timeout;
-	private $_model;
-	private $_options = array();
+	// Properties
+	// =========================================================================
 
 	/**
+	 * @var string
+	 */
+	private $_endpoint;
+
+	/**
+	 * @var int
+	 */
+	private $_timeout;
+
+	/**
+	 * @var EtModel
+	 */
+	private $_model;
+
+	/**
+	 * @var bool
+	 */
+	private $_allowRedirects = true;
+
+	/**
+	 * @var string
+	 */
+	private $_userAgent;
+
+	/**
+	 * @var string
+	 */
+	private $_destinationFileName;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * @param     $endpoint
+	 * @param int $timeout
+	 * @param int $connectTimeout
+	 *
+	 * @return Et
+	 */
+	public function __construct($endpoint, $timeout = 30, $connectTimeout = 2)
+	{
+		$endpoint .= craft()->config->get('endpointSuffix');
+
+		$this->_endpoint = $endpoint;
+		$this->_timeout = $timeout;
+		$this->_connectTimeout = $connectTimeout;
+
+		$this->_model = new EtModel(array(
+			'licenseKey'        => $this->_getLicenseKey(),
+			'requestUrl'        => craft()->request->getHostInfo().craft()->request->getUrl(),
+			'requestIp'         => craft()->request->getIpAddress(),
+			'requestTime'       => DateTimeHelper::currentTimeStamp(),
+			'requestPort'       => craft()->request->getPort(),
+			'localBuild'        => CRAFT_BUILD,
+			'localVersion'      => CRAFT_VERSION,
+			'localEdition'      => craft()->getEdition(),
+			'userEmail'         => craft()->userSession->getUser()->email,
+			'track'             => CRAFT_TRACK,
+			'serverInfo'        => array(
+				'extensions'    => get_loaded_extensions(),
+				'phpVersion'    => PHP_VERSION,
+				'mySqlVersion'  => craft()->db->getServerVersion(),
+				'proc'          => function_exists('proc_open') ? 1 : 0,
+			),
+		));
+
+		$this->_userAgent = 'Craft/'.craft()->getVersion().'.'.craft()->getBuild();
+	}
+
+	/**
+	 * The maximum number of seconds to allow for an entire transfer to take place before timing out.  Set 0 to wait
+	 * indefinitely.
+	 *
 	 * @return int
 	 */
 	public function getTimeout()
@@ -42,63 +98,43 @@ class Et
 	}
 
 	/**
-	 * @param $followRedirects
+	 * The maximum number of seconds to wait while trying to connect. Set to 0 to wait indefinitely.
+	 *
+	 * @return int
 	 */
-	public function setFollowRedirects($followRedirects)
+	public function getConnectTimeout()
 	{
-		$this->_options['follow_redirects'] = $followRedirects;
+		return $this->_connectTimeout;
 	}
 
 	/**
-	 * @param $maxRedirects
+	 * Whether or not to follow redirects on the request.  Defaults to true.
+	 *
+	 * @param $allowRedirects
+	 *
+	 * @return null
 	 */
-	public function setMaxRedirects($maxRedirects)
+	public function setAllowRedirects($allowRedirects)
 	{
-		$this->_options['redirects'] = $maxRedirects;
+		$this->_allowRedirects = $allowRedirects;
 	}
 
 	/**
-	 * @param $blocking
+	 * @return bool
 	 */
-	public function setBlocking($blocking)
+	public function getAllowRedirects()
 	{
-		$this->_options['blocking'] = $blocking;
+		return $this->_allowRedirects;
 	}
 
 	/**
 	 * @param $destinationFileName
+	 *
+	 * @return null
 	 */
 	public function setDestinationFileName($destinationFileName)
 	{
-		$this->_options['filename'] = $destinationFileName;
-	}
-
-	/**
-	 * @param     $endpoint
-	 * @param int $timeout
-	 */
-	function __construct($endpoint, $timeout = 30)
-	{
-		$endpoint .= craft()->config->get('endpointSuffix');
-
-		$this->_endpoint = $endpoint;
-		$this->_timeout = $timeout;
-
-		$this->_model = new EtModel(array(
-			'licenseKey'        => $this->_getLicenseKey(),
-			'requestUrl'        => craft()->request->getHostInfo().craft()->request->getUrl(),
-			'requestIp'         => craft()->request->getIpAddress(),
-			'requestTime'       => DateTimeHelper::currentTimeStamp(),
-			'requestPort'       => craft()->request->getPort(),
-			'installedPackages' => Craft::getPackages(),
-			'localBuild'        => CRAFT_BUILD,
-			'localVersion'      => CRAFT_VERSION,
-			'userEmail'         => craft()->userSession->getUser()->email,
-			'track'             => CRAFT_TRACK,
-		));
-
-		$this->_options['useragent'] = 'craft-requests/'.\Requests::VERSION;
-		$this->_options['timeout']   = $this->_timeout;
+		$this->_destinationFileName = $destinationFileName;
 	}
 
 	/**
@@ -110,7 +146,11 @@ class Et
 	}
 
 	/**
-	 * Sets Custom Data on the EtModel.
+	 * Sets custom data on the EtModel.
+	 *
+	 * @param $data
+	 *
+	 * @return null
 	 */
 	public function setData($data)
 	{
@@ -127,96 +167,127 @@ class Et
 		{
 			$missingLicenseKey = empty($this->_model->licenseKey);
 
-			// No craft/config/license.key file and we can't even write to the config folder.  Don't even make the call home.
+			// No craft/config/license.key file and we can't write to the config folder. Don't even make the call home.
 			if ($missingLicenseKey && !$this->_isConfigFolderWritable())
 			{
 				throw new EtException('Craft needs to be able to write to your “craft/config” folder and it can’t.', 10001);
 			}
 
-			$data = JsonHelper::encode($this->_model->getAttributes(null, true));
-			$response = \Requests::post($this->_endpoint, array(), $data, $this->_options);
-
-			if ($response->success)
+			if (!craft()->cache->get('etConnectFailure'))
 			{
-				if (isset($this->_options['filename']))
+				$data = JsonHelper::encode($this->_model->getAttributes(null, true));
+
+				$client = new \Guzzle\Http\Client();
+				$client->setUserAgent($this->_userAgent, true);
+
+				$options = array(
+					'timeout'         => $this->getTimeout(),
+					'connect_timeout' => $this->getConnectTimeout(),
+					'allow_redirects' => $this->getAllowRedirects(),
+				);
+
+				$request = $client->post($this->_endpoint, $options);
+				$request->setBody($data, 'application/json');
+
+				// Potentially long-running request, so close session to prevent session blocking on subsequent requests.
+				craft()->session->close();
+
+				$response = $request->send();
+
+				if ($response->isSuccessful())
 				{
-					$fileName = IOHelper::getFileName($this->_options['filename'], false);
-
-					// If the file name is a UUID, we know it was temporarily set and they want to use the name of the file that was on the sending server.
-					if (StringHelper::isUUID($fileName))
+					// Clear the connection failure cached item if it exists.
+					if (craft()->cache->get('etConnectFailure'))
 					{
-						$contentDisposition = $response->headers->offsetGet('content-disposition');
-						preg_match("/\"(.*)\"/us", $contentDisposition, $matches);
-						$fileName = $matches[1];
-
-						IOHelper::rename($this->_options['filename'], IOHelper::getFolderName($this->_options['filename']).$fileName);
+						craft()->cache->delete('etConnectFailure');
 					}
 
-					return $fileName;
-				}
-
-				$etModel = craft()->et->decodeEtModel($response->body);
-
-				if ($etModel)
-				{
-					if ($missingLicenseKey && !empty($etModel->licenseKey))
+					if ($this->_destinationFileName)
 					{
-						$this->_setLicenseKey($etModel->licenseKey);
+						$body = $response->getBody();
+
+						// Make sure we're at the beginning of the stream.
+						$body->rewind();
+
+						// Write it out to the file
+						IOHelper::writeToFile($this->_destinationFileName, $body->getStream(), true);
+
+						// Close the stream.
+						$body->close();
+
+						return IOHelper::getFileName($this->_destinationFileName);
 					}
 
-					// Do some packageTrial timestamp to datetime conversions.
-					if (!empty($etModel->packageTrials))
+					$etModel = craft()->et->decodeEtModel($response->getBody());
+
+					if ($etModel)
 					{
-						$packageTrials = $etModel->packageTrials;
-						foreach ($etModel->packageTrials as $packageHandle => $expiryTimestamp)
+						if ($missingLicenseKey && !empty($etModel->licenseKey))
 						{
-							$expiryDate = DateTime::createFromFormat('U', $expiryTimestamp);
-							$currentDate = DateTimeHelper::currentUTCDateTime();
-
-							if ($currentDate > $expiryDate)
-							{
-								unset($packageTrials[$packageHandle]);
-							}
+							$this->_setLicenseKey($etModel->licenseKey);
 						}
 
-						$etModel->packageTrials = $packageTrials;
+						// Cache the license key status and which edition it has
+						craft()->cache->set('licenseKeyStatus', $etModel->licenseKeyStatus);
+						craft()->cache->set('licensedEdition', $etModel->licensedEdition);
+						craft()->cache->set('editionTestableDomain@'.craft()->request->getHostName(), $etModel->editionTestableDomain ? 1 : 0);
+
+						if ($etModel->licenseKeyStatus == LicenseKeyStatus::MismatchedDomain)
+						{
+							craft()->cache->set('licensedDomain', $etModel->licensedDomain);
+						}
+
+						return $etModel;
 					}
-
-					// Cache the license key status and which packages are associated with it
-					craft()->fileCache->set('licenseKeyStatus', $etModel->licenseKeyStatus);
-					craft()->fileCache->set('licensedPackages', $etModel->licensedPackages);
-					craft()->fileCache->set('packageTrials', $etModel->packageTrials);
-
-					if ($etModel->licenseKeyStatus == LicenseKeyStatus::MismatchedDomain)
+					else
 					{
-						craft()->fileCache->set('licensedDomain', $etModel->licensedDomain);
-					}
+						Craft::log('Error in calling '.$this->_endpoint.' Response: '.$response->getBody(), LogLevel::Warning);
 
-					return $etModel;
+						if (craft()->cache->get('etConnectFailure'))
+						{
+							// There was an error, but at least we connected.
+							craft()->cache->delete('etConnectFailure');
+						}
+					}
 				}
 				else
 				{
-					Craft::log('Error in calling '.$this->_endpoint.' Response: '.$response->body, LogLevel::Warning);
+					Craft::log('Error in calling '.$this->_endpoint.' Response: '.$response->getBody(), LogLevel::Warning);
+
+					if (craft()->cache->get('etConnectFailure'))
+					{
+						// There was an error, but at least we connected.
+						craft()->cache->delete('etConnectFailure');
+					}
 				}
-			}
-			else
-			{
-				Craft::log('Error in calling '.$this->_endpoint.' Response: '.$response->body, LogLevel::Warning);
 			}
 		}
 		// Let's log and rethrow any EtExceptions.
 		catch (EtException $e)
 		{
 			Craft::log('Error in '.__METHOD__.'. Message: '.$e->getMessage(), LogLevel::Error);
+
+			if (craft()->cache->get('etConnectFailure'))
+			{
+				// There was an error, but at least we connected.
+				craft()->cache->delete('etConnectFailure');
+			}
+
 			throw $e;
 		}
 		catch (\Exception $e)
 		{
 			Craft::log('Error in '.__METHOD__.'. Message: '.$e->getMessage(), LogLevel::Error);
+
+			// Cache the failure for 5 minutes so we don't try again.
+			craft()->cache->set('etConnectFailure', true, 300);
 		}
 
 		return null;
 	}
+
+	// Private Methods
+	// =========================================================================
 
 	/**
 	 * @return null|string
@@ -235,6 +306,7 @@ class Et
 
 	/**
 	 * @param $key
+	 *
 	 * @return bool
 	 * @throws Exception|EtException
 	 */
@@ -269,6 +341,6 @@ class Et
 	 */
 	private function _isConfigFolderWritable()
 	{
-	 return IOHelper::isWritable(IOHelper::getFolderName(craft()->path->getLicenseKeyPath()));
+		return IOHelper::isWritable(IOHelper::getFolderName(craft()->path->getLicenseKeyPath()));
 	}
 }

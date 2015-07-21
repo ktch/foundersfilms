@@ -1,4 +1,4 @@
-/*!
+/**
  * Craft by Pixel & Tonic
  *
  * @package   Craft
@@ -8,43 +8,54 @@
  * @link      http://buildwithcraft.com
  */
 
-var config = {{config|raw}};
-var targetSelector = '.redactor-{{handle}}';
+(function($) {
+
+
+var config = {{ config|raw }},
+	targetSelector = '.redactor-{{ handle }}',
+	lang = $.Redactor.opts.langs['{{ lang }}'];
+
+config.lang = '{{ lang }}';
 
 // Replace the image and link dropdowns with slight modifications.
 if (typeof config.buttonsCustom == "undefined")
 {
-  config.buttonsCustom = {};
+	config.buttonsCustom = {};
 }
 
 config.buttonsCustom.image = {
-	title: Craft.t('Insert image'),
+	title: "{{ 'Insert image'|t|e('js') }}",
 	dropdown:
 	{
 		from_web: {
-			title: Craft.t('Insert URL'),
+			title: "{{ 'Insert URL'|t|e('js') }}",
 			callback: function () { this.imageShow();}
 		},
 		from_assets: {
-			title: Craft.t('Choose image'),
+			title: "{{ 'Choose image'|t|e('js') }}",
 			callback: function () {
 
 				this.selectionSave();
                 var editor = this;
 				if (typeof this.assetSelectionModal == 'undefined')
 				{
-					this.assetSelectionModal = new Craft.ElementSelectorModal('Asset', {
+					this.assetSelectionModal = Craft.createElementSelectorModal('Asset', {
+						storageKey: 'RichTextFieldType.ChooseImage',
+						multiSelect: true,
 						criteria: { kind: 'image' },
-						onSelect: $.proxy(function(elements) {
-							if (elements.length)
+						onSelect: $.proxy(function(assets) {
+							if (assets.length)
 							{
                                 editor.selectionRestore();
-
-								var element = elements[0].$element;
-                                editor.insertNode($('<img src="' + element.attr('data-url') + '" />')[0]);
-
-                                editor.sync();
-                                editor.dropdownHideAll();
+								for (var i = 0; i < assets.length; i++)
+								{
+									var asset = assets[i],
+										url   = asset.url+'#asset:'+asset.id;
+									editor.insertNode($('<img src="'+url+'" />')[0]);
+									editor.sync();
+								}
+								this.observeImages();
+								editor.dropdownHideAll();
 							}
 						}, this),
                         closeOtherModals: false
@@ -61,11 +72,11 @@ config.buttonsCustom.image = {
 };
 
 config.buttonsCustom.link = {
-	title: Craft.t('Link'),
+	title: "{{ 'Link'|t|e('js') }}",
 	dropdown: {
 		link_entry:
 		{
-			title: Craft.t('Link to an entry'),
+			title: "{{ 'Link to an entry'|t|e('js') }}",
 			callback: function () {
 
 				this.selectionSave();
@@ -73,16 +84,18 @@ config.buttonsCustom.link = {
                 var editor = this;
 				if (typeof this.entrySelectionModal == 'undefined')
 				{
-					this.entrySelectionModal = new Craft.ElementSelectorModal('Entry', {
+					this.entrySelectionModal = Craft.createElementSelectorModal('Entry', {
+						storageKey: 'RichTextFieldType.LinkToEntry',
 						sources: {{sections|raw}},
-						onSelect: function(elements) {
-							if (elements.length)
+						onSelect: function(entries) {
+							if (entries.length)
 							{
                                 editor.selectionRestore();
-                                var element = elements[0];
-                                var selection = editor.getSelectionText();
-                                var title = selection.length > 0 ? selection : element.label;
-                                editor.insertNode($('<a href="' + element.$element.attr('data-url') + '">' + title + '</a>')[0]);
+                                var entry     = entries[0],
+                                	url       = entry.url+'#entry:'+entry.id,
+                                	selection = editor.getSelectionText(),
+                                	title = selection.length > 0 ? selection : entry.label;
+                                editor.insertNode($('<a href="'+url+'">'+title+'</a>')[0]);
                                 editor.sync();
                             }
                             editor.dropdownHideAll();
@@ -97,15 +110,50 @@ config.buttonsCustom.link = {
 				}
 			}
 		},
+		link_asset:
+		{
+			title: Craft.t('Link to an asset'),
+			callback: function () {
+
+				this.selectionSave();
+
+				var editor = this;
+				if (typeof this.assetLinkSelectionModal == 'undefined')
+				{
+					this.assetLinkSelectionModal = Craft.createElementSelectorModal('Asset', {
+						storageKey: 'RichTextFieldType.LinkToAsset',
+						onSelect: function(assets) {
+							if (assets.length)
+							{
+								editor.selectionRestore();
+								var asset     = assets[0],
+									url       = asset.url+'#asset:'+asset.id,
+									selection = editor.getSelectionText(),
+									title     = selection.length > 0 ? selection : asset.label;
+								editor.insertNode($('<a href="'+url+'">'+title+'</a>')[0]);
+								editor.sync();
+							}
+							editor.dropdownHideAll();
+						},
+						closeOtherModals: false
+					});
+				}
+				else
+				{
+					this.assetLinkSelectionModal.shiftModalToEnd();
+					this.assetLinkSelectionModal.show();
+				}
+			}
+		},
 		link:
 		{
-			title: Craft.t('Insert link'),
-			callback: function () { this.linkShow();}
+			title: lang.link_insert,
+			func:  'linkShow'
 		},
 		unlink:
 		{
-			title: Craft.t('Remove link'),
-			callback: function () { this.exec('unlink');}
+			title: lang.unlink,
+			exec:  'unlink'
 		}
 	}
 }
@@ -113,3 +161,6 @@ config.buttonsCustom.link = {
 config.fullscreenAppend = true;
 
 $(targetSelector).redactor(config);
+
+
+})(jQuery);

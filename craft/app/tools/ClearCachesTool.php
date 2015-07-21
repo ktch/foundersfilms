@@ -2,22 +2,22 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Clear Caches tool.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Clear Caches tool
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.tools
+ * @since     1.0
  */
 class ClearCachesTool extends BaseTool
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
-	 * Returns the tool name.
+	 * @inheritDoc IComponentType::getName()
 	 *
 	 * @return string
 	 */
@@ -27,7 +27,7 @@ class ClearCachesTool extends BaseTool
 	}
 
 	/**
-	 * Returns the tool's icon value.
+	 * @inheritDoc ITool::getIconValue()
 	 *
 	 * @return string
 	 */
@@ -37,20 +37,25 @@ class ClearCachesTool extends BaseTool
 	}
 
 	/**
-	 * Returns the tool's options HTML.
+	 * @inheritDoc ITool::getOptionsHtml()
 	 *
 	 * @return string
 	 */
 	public function getOptionsHtml()
 	{
+		$caches = $this->_getFolders();
+		$caches['assetTransformIndex'] = Craft::t('Asset transform index');
+		$caches['assetIndexingData'] = Craft::t('Asset indexing data');
+		$caches['templateCaches'] = Craft::t('Template caches');
+
 		return craft()->templates->render('_includes/forms/checkboxSelect', array(
-			'name'    => 'folders',
-			'options' => $this->_getFolders()
+			'name'    => 'caches',
+			'options' => $caches
 		));
 	}
 
 	/**
-	 * Returns the tool's button label.
+	 * @inheritDoc ITool::getButtonLabel()
 	 *
 	 * @return string
 	 */
@@ -60,52 +65,111 @@ class ClearCachesTool extends BaseTool
 	}
 
 	/**
-	 * Performs the tool's action.
+	 * @inheritDoc ITool::performAction()
 	 *
 	 * @param array $params
-	 * @return array
+	 *
+	 * @return null
 	 */
 	public function performAction($params = array())
 	{
-		if (!isset($params['folders']))
+		if (!isset($params['caches']))
 		{
 			return;
 		}
 
-		$allFolders = array_keys($this->_getFolders());
+		$allFolderKeys = array_keys($this->_getFolders());
 
-		if ($params['folders'] == '*')
+		if ($params['caches'] == '*')
 		{
-			$folders = $allFolders;
+			$folders = $allFolderKeys;
 		}
 		else
 		{
-			$folders = $params['folders'];
+			$folders = array();
+
+			foreach ($params['caches'] as $cacheKey)
+			{
+				if (in_array($cacheKey, $allFolderKeys))
+				{
+					$folders[] = $cacheKey;
+				}
+			}
 		}
+
+		$allFolders = array_keys($this->_getFolders(false));
 
 		foreach ($folders as $folder)
 		{
-			if (in_array($folder, $allFolders))
+			foreach ($allFolders as $allFolder)
 			{
-				$path = craft()->path->getRuntimePath().$folder;
-				IOHelper::clearFolder($path, true);
+				if (md5($allFolder) == $folder)
+				{
+					if ($allFolder == 'dataCache')
+					{
+						craft()->cache->flush();
+					}
+					else
+					{
+						IOHelper::clearFolder($allFolder, true);
+						break;
+					}
+				}
 			}
+		}
+
+		if ($params['caches'] == '*' || in_array('templateCaches', $params['caches']))
+		{
+			craft()->templateCache->deleteAllCaches();
+		}
+
+		if ($params['caches'] == '*' || in_array('assetTransformIndex', $params['caches']))
+		{
+			craft()->db->createCommand()->truncateTable('assettransformindex');
+		}
+
+		if ($params['caches'] == '*' || in_array('assetIndexingData', $params['caches']))
+		{
+			craft()->db->createCommand()->truncateTable('assetindexdata');
 		}
 	}
 
+	// Private Methods
+	// =========================================================================
+
 	/**
-	 * Returns the cache folders we allow to be cleared.
+	 * Returns the cache folders we allow to be cleared as well as any plugin cache paths that have used the
+	 * 'registerCachePaths' hook.
 	 *
-	 * @access private
+	 * @param bool $obfuscate If true, will MD5 the path so it will be obfuscated in the template.
+	 *
 	 * @return array
 	 */
-	private function _getFolders()
+	private function _getFolders($obfuscate = true)
 	{
-		return array(
-			'cache' => Craft::t('File caches'),
-			'assets' => Craft::t('Asset thumbs'),
-			'compiled_templates' => Craft::t('Compiled templates'),
-			'temp' => Craft::t('Temp files'),
+		$runtimePath = craft()->path->getRuntimePath();
+
+		$folders = array(
+			$obfuscate ? md5('dataCache') : 'dataCache'                                             => Craft::t('Data caches'),
+			$obfuscate ? md5($runtimePath.'cache') : $runtimePath.'cache'                           => Craft::t('RSS caches'),
+			$obfuscate ? md5($runtimePath.'assets') : $runtimePath.'assets'                         => Craft::t('Asset caches'),
+			$obfuscate ? md5($runtimePath.'compiled_templates') : $runtimePath.'compiled_templates' => Craft::t('Compiled templates'),
+			$obfuscate ? md5($runtimePath.'temp') : $runtimePath.'temp'                             => Craft::t('Temp files'),
 		);
+
+		$pluginCachePaths = craft()->plugins->call('registerCachePaths');
+
+		if (is_array($pluginCachePaths) && count($pluginCachePaths) > 0)
+		{
+			foreach ($pluginCachePaths as $paths)
+			{
+				foreach ($paths as $path => $label)
+				{
+					$folders[$obfuscate ? md5($path) : $path] = $label;
+				}
+			}
+		}
+
+		return $folders;
 	}
 }

@@ -2,32 +2,32 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class DateFieldType
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- *
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.fieldtypes
+ * @since     1.0
  */
 class DateFieldType extends BaseFieldType
 {
+	// Public Methods
+	// =========================================================================
+
 	/**
-	 * Returns the type of field this is.
+	 * @inheritDoc IComponentType::getName()
 	 *
 	 * @return string
 	 */
 	public function getName()
 	{
-		return Craft::t('Date');
+		return Craft::t('Date/Time');
 	}
 
 	/**
-	 * Returns the content attribute config.
+	 * @inheritDoc IFieldType::defineContentAttribute()
 	 *
 	 * @return mixed
 	 */
@@ -37,91 +37,174 @@ class DateFieldType extends BaseFieldType
 	}
 
 	/**
-	 * Defines the settings.
-	 *
-	 * @access protected
-	 * @return array
-	 */
-	protected function defineSettings()
-	{
-		return array(
-			'showTime' => AttributeType::Bool,
-		);
-	}
-
-	/**
-	 * Returns the field's settings HTML.
+	 * @inheritDoc ISavableComponentType::getSettingsHtml()
 	 *
 	 * @return string|null
 	 */
 	public function getSettingsHtml()
 	{
-		return craft()->templates->renderMacro('_includes/forms.html', 'checkboxField', array(
-			array(
-				'label' => Craft::t('Show time?'),
-				'id' => 'showTime',
-				'name' => 'showTime',
-				'checked' => $this->getSettings()->showTime,
-			)
+		// If they are both selected or nothing is selected, the select showBoth.
+		if (($this->getSettings()->showDate && $this->getSettings()->showTime))
+		{
+			$dateTimeValue = 'showBoth';
+		}
+		else if ($this->getSettings()->showDate)
+		{
+			$dateTimeValue = 'showDate';
+		}
+		else if ($this->getSettings()->showTime)
+		{
+			$dateTimeValue = 'showTime';
+		}
+
+		$options = array(15, 30, 60);
+		$options = array_combine($options, $options);
+
+		return craft()->templates->render('_components/fieldtypes/Date/settings', array(
+			'options' => array(
+				array(
+					'label' => Craft::t('Show date'),
+					'value' => 'showDate',
+				),
+				array(
+					'label' => Craft::t('Show time'),
+					'value' => 'showTime',
+				),
+				array(
+					'label' => Craft::t('Show date and time'),
+					'value' => 'showBoth',
+				)
+			),
+			'value' => $dateTimeValue,
+			'incrementOptions' => $options,
+			'settings' => $this->getSettings(),
 		));
 	}
 
 	/**
-	 * Returns the field's input HTML.
+	 * @inheritDoc IFieldType::getInputHtml()
 	 *
 	 * @param string $name
 	 * @param mixed  $value
+	 *
 	 * @return string
 	 */
 	public function getInputHtml($name, $value)
 	{
-		$suffix = '-'.uniqid();
+		$variables = array(
+			'id'              => craft()->templates->formatInputId($name),
+			'name'            => $name,
+			'value'           => $value,
+			'minuteIncrement' => $this->getSettings()->minuteIncrement
+		);
 
-		$input = craft()->templates->render('_includes/forms/date', array(
-			'id'       => rtrim(preg_replace('/[\[\]]+/', '-', $name), '-').$suffix,
-			'name'     => $name,
-			'value'    => $value
-		));
+		$input = '';
+
+		// In case nothing is selected, default to the date.
+		if (!$this->getSettings()->showDate && !$this->getSettings()->showTime)
+		{
+			$this->getSettings()->showDate = true;
+		}
+
+		if ($this->getSettings()->showDate)
+		{
+			$input .= craft()->templates->render('_includes/forms/date', $variables);
+		}
 
 		if ($this->getSettings()->showTime)
 		{
-			$input .= ' '.craft()->templates->render('_includes/forms/time', array(
-				'id'       => rtrim(preg_replace('/[\[\]]+/', '-', $name), '-').$suffix,
-				'name'     => $name,
-				'value'    => $value
-			));
+			$input .= ' '.craft()->templates->render('_includes/forms/time', $variables);
 		}
 
 		return $input;
 	}
 
 	/**
-	 * Get the posted time and adjust it for timezones.
+	 * @inheritDoc IFieldType::prepValueFromPost()
 	 *
 	 * @param mixed $value
-	 * @return DateTime
+	 *
+	 * @return mixed
 	 */
-	protected function prepPostData($value)
+	public function prepValueFromPost($value)
 	{
-		if ($value)
+		return DateTime::createFromString($value, craft()->getTimeZone());
+	}
+
+	/**
+	 * @inheritDoc IFieldType::modifyElementsQuery()
+	 *
+	 * @param DbCommand $query
+	 * @param mixed     $value
+	 *
+	 * @return null|false
+	 */
+	public function modifyElementsQuery(DbCommand $query, $value)
+	{
+		if ($value !== null)
 		{
-			// Ugly?  Yes.  Yes it is.
-			$timeString = $value->format(DateTime::MYSQL_DATETIME, DateTime::UTC);
-			return DateTime::createFromFormat(DateTime::MYSQL_DATETIME, $timeString, craft()->getTimeZone());
+			$handle = $this->model->handle;
+			$query->andWhere(DbHelper::parseDateParam('content.'.craft()->content->fieldColumnPrefix.$handle, $value, $query->params));
 		}
 	}
 
 	/**
-	 * Convert back to the server's timezone.
+	 * @inheritDoc ISavableComponentType::prepSettings()
 	 *
-	 * @param mixed $value
-	 * @return DateTime
+	 * @param array $settings
+	 *
+	 * @return array
 	 */
-	public function prepValue($value)
+	public function prepSettings($settings)
 	{
-		if ($value)
+		if (isset($settings['dateTime']))
 		{
-			return $value->setTimezone(new \DateTimeZone(craft()->getTimeZone()));
+			switch ($settings['dateTime'])
+			{
+				case 'showBoth':
+				{
+					unset($settings['dateTime']);
+					$settings['showTime'] = true;
+					$settings['showDate'] = true;
+
+					break;
+				}
+				case 'showDate':
+				{
+					unset($settings['dateTime']);
+					$settings['showDate'] = true;
+					$settings['showTime'] = false;
+
+					break;
+				}
+				case 'showTime':
+				{
+					unset($settings['dateTime']);
+					$settings['showTime'] = true;
+					$settings['showDate'] = false;
+
+					break;
+				}
+			}
 		}
+
+		return $settings;
+	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseSavableComponentType::defineSettings()
+	 *
+	 * @return array
+	 */
+	protected function defineSettings()
+	{
+		return array(
+			'showDate'        => array(AttributeType::Bool, 'default' => true),
+			'showTime'        => AttributeType::Bool,
+			'minuteIncrement' => array(AttributeType::Number, 'default' => 30, 'min' => 1, 'max' => 60),
+		);
 	}
 }

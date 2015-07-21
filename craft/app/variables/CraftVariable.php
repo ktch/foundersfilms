@@ -2,24 +2,36 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
  * Contains all global variables.
+ *
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
+ * @license   http://buildwithcraft.com/license Craft License Agreement
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.variables
+ * @since     1.0
  */
 class CraftVariable
 {
+	// Properties
+	// =========================================================================
+
+	/**
+	 * @var
+	 */
 	private $_rebrandVariable;
 
 	/**
-	 * @param $name
+	 * @var array
+	 */
+	private $_pluginVariableInstances;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * @param string $name
+	 *
 	 * @return mixed
 	 */
 	public function __get($name)
@@ -34,15 +46,22 @@ class CraftVariable
 			// Variables should already be imported by the plugin service, but let's double check.
 			if (!class_exists($className))
 			{
-				Craft::import('plugins.'.strtolower($pluginName).'.variables.'.$pluginName.'Variable');
+				Craft::import('plugins.'.StringHelper::toLowerCase($pluginName).'.variables.'.$pluginName.'Variable');
 			}
 
-			return new $className;
+			// If we haven't done this one yet, create it and save it for later.
+			if (!isset($this->_pluginVariableInstances[$className]))
+			{
+				$this->_pluginVariableInstances[$className] = new $className;
+			}
+
+			return $this->_pluginVariableInstances[$className];
 		}
 	}
 
 	/**
-	 * @param $name
+	 * @param string $name
+	 *
 	 * @return bool
 	 */
 	public function __isset($name)
@@ -53,8 +72,10 @@ class CraftVariable
 		{
 			return true;
 		}
-
-		return false;
+		else
+		{
+			return false;
+		}
 	}
 
 	/**
@@ -68,29 +89,31 @@ class CraftVariable
 	}
 
 	/**
-	 * Returns the packages in this Craft install, as defined by the craft_info table.
+	 * Returns whether this site has multiple locales.
 	 *
-	 * @return array
+	 * @return bool
 	 */
-	public function getPackages()
+	public function isLocalized()
 	{
-		return Craft::getPackages();
+		return craft()->isLocalized();
 	}
 
 	/**
 	 * Returns whether a package is included in the Craft build.
 	 *
-	 * @param $packageName;
+	 * @param string $packageName;
+	 *
+	 * @deprecated Deprecated in 2.0.
 	 * @return bool
+	 *
 	 */
 	public function hasPackage($packageName)
 	{
-		return Craft::hasPackage($packageName);
+		return craft()->hasPackage($packageName);
 	}
 
-	// -------------------------------------------
-	//  Template variable classes
-	// -------------------------------------------
+	// Template variable classes
+	// -------------------------------------------------------------------------
 
 	/**
 	 * @return AppVariable
@@ -101,11 +124,31 @@ class CraftVariable
 	}
 
 	/**
-	 * @return AssetsVariable
+	 * @param array|null $criteria
+	 *
+	 * @return ElementCriteriaModel
 	 */
-	public function assets()
+	public function assets($criteria = null)
 	{
-		return new AssetsVariable();
+		return craft()->elements->getCriteria(ElementType::Asset, $criteria);
+	}
+
+	/**
+	 * @param array|null $criteria
+	 *
+	 * @return ElementCriteriaModel
+	 */
+	public function categories($criteria = null)
+	{
+		return craft()->elements->getCriteria(ElementType::Category, $criteria);
+	}
+
+	/**
+	 * @return CategoryGroupsVariable
+	 */
+	public function categoryGroups()
+	{
+		return new CategoryGroupsVariable();
 	}
 
 	/**
@@ -125,14 +168,6 @@ class CraftVariable
 	}
 
 	/**
-	 * @return FieldTypesVariable
-	 */
-	public function fieldTypes()
-	{
-		return new FieldTypesVariable();
-	}
-
-	/**
 	 * @return CpVariable
 	 */
 	public function cp()
@@ -149,11 +184,19 @@ class CraftVariable
 	}
 
 	/**
+	 * @return DeprecatorVariable
+	 */
+	public function deprecator()
+	{
+		return new DeprecatorVariable();
+	}
+
+	/**
 	 * @return EmailMessagesVariable
 	 */
 	public function emailMessages()
 	{
-		if (Craft::hasPackage(CraftPackage::Rebrand))
+		if (craft()->getEdition() >= Craft::Client)
 		{
 			return new EmailMessagesVariable();
 		}
@@ -161,6 +204,7 @@ class CraftVariable
 
 	/**
 	 * @param array|null $criteria
+	 *
 	 * @return ElementCriteriaModel
 	 */
 	public function entries($criteria = null)
@@ -181,7 +225,7 @@ class CraftVariable
 	 */
 	public function entryRevisions()
 	{
-		if (Craft::hasPackage(CraftPackage::PublishPro))
+		if (craft()->getEdition() >= Craft::Client)
 		{
 			return new EntryRevisionsVariable();
 		}
@@ -193,14 +237,6 @@ class CraftVariable
 	public function feeds()
 	{
 		return new FeedsVariable();
-	}
-
-	/**
-	 * @return LinksVariable
-	 */
-	public function links()
-	{
-		return new LinksVariable();
 	}
 
 	/**
@@ -224,7 +260,7 @@ class CraftVariable
 	 */
 	public function rebrand()
 	{
-		if (Craft::hasPackage(CraftPackage::Rebrand))
+		if (craft()->getEdition() >= Craft::Client)
 		{
 			if (!isset($this->_rebrandVariable))
 			{
@@ -268,6 +304,24 @@ class CraftVariable
 	}
 
 	/**
+	 * @param array|null $criteria
+	 *
+	 * @return ElementCriteriaModel
+	 */
+	public function tags($criteria = null)
+	{
+		return craft()->elements->getCriteria(ElementType::Tag, $criteria);
+	}
+
+	/**
+	 * @return TasksVariable
+	 */
+	public function tasks()
+	{
+		return new TasksVariable();
+	}
+
+	/**
 	 * @return UpdatesVariable
 	 */
 	public function updates()
@@ -277,11 +331,12 @@ class CraftVariable
 
 	/**
 	 * @param array|null $criteria
+	 *
 	 * @return ElementCriteriaModel|null
 	 */
 	public function users($criteria = null)
 	{
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->getEdition() == Craft::Pro)
 		{
 			return craft()->elements->getCriteria(ElementType::User, $criteria);
 		}
@@ -292,7 +347,7 @@ class CraftVariable
 	 */
 	public function userGroups()
 	{
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->getEdition() == Craft::Pro)
 		{
 			return new UserGroupsVariable();
 		}
@@ -303,7 +358,7 @@ class CraftVariable
 	 */
 	public function userPermissions()
 	{
-		if (Craft::hasPackage(CraftPackage::Users))
+		if (craft()->getEdition() == Craft::Pro)
 		{
 			return new UserPermissionsVariable();
 		}

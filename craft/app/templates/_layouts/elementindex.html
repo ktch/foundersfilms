@@ -1,14 +1,14 @@
 {% extends "_layouts/cp" %}
-{% from "_includes/forms" import text %}
 
 {% set elementTypeClass = elementType %}
 {% set elementType = craft.elements.getElementType(elementTypeClass) %}
+{% set context = 'index' %}
 
 {% if not elementType %}
 	{% exit 404 %}
 {% endif %}
 
-{% set sources = elementType.getSources() %}
+{% set sources = elementType.getSources('index') %}
 
 
 {% block sidebar %}
@@ -20,30 +20,20 @@
 {% endblock %}
 
 
-{% block content %}
-	<div class="main">
-		<div class="toolbar">
-			<div class="search">
-				{{ text({
-					placeholder: "Search"|t
-				}) }}
-			</div>
-			<div class="spinner hidden"></div>
-		</div>
-
-		<div class="elements"></div>
-
-		<div class="centeralign">
-			<div class="spinner loadingmore hidden"></div>
-		</div>
+{% set content %}
+	<div class="elementindex">
+		{% include "_elements/indexcontainer" %}
 	</div>
-{% endblock %}
+{% endset %}
 
 
 {% block initJs %}
-	new Craft.ElementIndex('{{ elementTypeClass }}', $('#main'), {
-		id: '{{ elementTypeClass }}Index',
-		criteria: { status: null }
+	Craft.elementIndex = Craft.createElementIndex('{{ elementTypeClass }}', $('#main'), {
+		context:        '{{ context }}',
+		showStatusMenu: {{ showStatusMenu is defined ? showStatusMenu|json_encode|raw : "'auto'" }},
+		showLocaleMenu: {{ showLocaleMenu is defined ? showLocaleMenu|json_encode|raw : "'auto'" }},
+		storageKey:     'elementindex.{{ elementTypeClass }}',
+		criteria:       { localeEnabled: null }
 	});
 {% endblock %}
 

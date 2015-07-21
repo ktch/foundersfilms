@@ -1,21 +1,19 @@
-/*!
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+/**
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.resources
  */
 
 (function($) {
 
 
-Craft.Tool = Garnish.Base.extend({
-
+Craft.Tool = Garnish.Base.extend(
+{
 	$trigger: null,
 	$form: null,
-	$progressBar: null,
+	$innerProgressBar: null,
 	$innerProgressBar: null,
 
 	toolClass: null,
@@ -50,9 +48,8 @@ Craft.Tool = Garnish.Base.extend({
 				'</div>');
 
 			this.hud = new Garnish.HUD(this.$trigger, this.$form, {
-				hudClass: 'hud toolhud',
-				triggerSpacing: 10,
-				tipWidth: 30
+				positions: ['top', 'bottom', 'right', 'left'],
+				hudClass: 'hud toolhud'
 			});
 
 			Craft.initUiElements(this.$form);
@@ -68,14 +65,13 @@ Craft.Tool = Garnish.Base.extend({
 	{
 		ev.preventDefault();
 
-		if (!this.$progressBar)
+		if (!this.progressBar)
 		{
-			this.$progressBar = $('<div class="progressbar pending"/>').appendTo(this.hud.$body);
-			this.$innerProgressBar = $('<div class="progressbar-inner"/>').appendTo(this.$progressBar);
+			this.progressBar = new Craft.ProgressBar(this.hud.$body);
 		}
 		else
 		{
-			this.$progressBar.addClass('pending');
+			this.progressBar.resetProgressBar();
 		}
 
 		this.totalActions = 1;
@@ -85,18 +81,16 @@ Craft.Tool = Garnish.Base.extend({
 		this.loadingActions = 0;
 		this.currentBatchQueue = [];
 
-		this.$progressBar.css({
+
+		this.progressBar.$progressBar.css({
 			top: Math.round(this.hud.$body.outerHeight() / 2) - 6
-		});
+		})
+			.removeClass('hidden');
 
-		this.$form.stop().animate({
-			left: -200
-		}, 'fast');
+		this.$form.velocity('stop').animateLeft(-200, 'fast');
 
-		this.$progressBar.stop().animate({
-			left: 30
-		}, 'fast', $.proxy(function() {
-
+		this.progressBar.$progressBar.velocity('stop').animateLeft(30, 'fast', $.proxy(function()
+		{
 			var postData = Garnish.getPostData(this.$form),
 				params = Craft.expandPostArray(postData);
 			params.start = true;
@@ -110,10 +104,8 @@ Craft.Tool = Garnish.Base.extend({
 
 	updateProgressBar: function()
 	{
-		this.$progressBar.removeClass('pending');
-
-		var width = (100 * this.completedActions / this.totalActions)+'%';
-		this.$innerProgressBar.width(width);
+		var width = (100 * this.completedActions / this.totalActions);
+		this.progressBar.setProgressPercentage(width);
 	},
 
 	loadAction: function(data)
@@ -132,7 +124,7 @@ Craft.Tool = Garnish.Base.extend({
 
 	showConfirmDialog: function(data)
 	{
-		var $modal = $('<form class="modal confirmmodal"/>').appendTo(Garnish.$bod),
+		var $modal = $('<form class="modal fitted confirmmodal"/>').appendTo(Garnish.$bod),
 			$body = $('<div class="body"/>').appendTo($modal).html(data.confirm),
 			$footer = $('<footer class="footer"/>').appendTo($modal),
 			$buttons = $('<div class="buttons right"/>').appendTo($footer),
@@ -171,16 +163,18 @@ Craft.Tool = Garnish.Base.extend({
 			params: params
 		};
 
-		Craft.postActionRequest('tools/performAction', data, $.proxy(this, 'onActionResponse'));
+		Craft.postActionRequest('tools/performAction', data, $.proxy(this, 'onActionResponse'), {
+			complete: $.noop
+		});
 	},
 
-	onActionResponse: function(response)
+	onActionResponse: function(response, textStatus)
 	{
 		this.loadingActions--;
 		this.completedActions++;
 
 		// Add any new batches to the queue?
-		if (response && typeof response.batches != 'undefined' && response.batches)
+		if (textStatus == 'success' && response && response.batches)
 		{
 			for (var i = 0; i < response.batches.length; i++)
 			{
@@ -190,6 +184,11 @@ Craft.Tool = Garnish.Base.extend({
 					this.queue.push(response.batches[i]);
 				}
 			}
+		}
+
+		if (response && response.error)
+		{
+			alert(response.error);
 		}
 
 		this.updateProgressBar();
@@ -211,7 +210,7 @@ Craft.Tool = Garnish.Base.extend({
 			}
 			else
 			{
-				if (response && typeof response.backupFile != 'undefined' && response.backupFile)
+				if (response && response.backupFile)
 				{
 					var $iframe = $('<iframe/>', {'src' : Craft.getActionUrl('tools/downloadBackupFile', {'fileName':response.backupFile}) }).hide();
 					this.$form.append($iframe);
@@ -233,20 +232,19 @@ Craft.Tool = Garnish.Base.extend({
 	{
 		if (!this.$allDone)
 		{
-			this.$allDone = $('<div class="alldone" data-icon="√" />').appendTo(this.hud.$body);
+			this.$allDone = $('<div class="alldone" data-icon="done" />').appendTo(this.hud.$body);
 		}
 
 		this.$allDone.css({
 			top: Math.round(this.hud.$body.outerHeight() / 2) - 30
 		});
 
-		this.$progressBar.animate({
-			left: -170
-		}, 'fast');
+		this.progressBar.$progressBar.animateLeft(-170, 'fast');
 
-		this.$allDone.animate({
-			left: 30
-		}, 'fast');
+		this.$allDone.animateLeft(30, 'fast');
+
+		// Just in case the tool created a new task...
+		Craft.cp.runPendingTasks();
 	}
 
 },

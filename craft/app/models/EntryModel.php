@@ -2,52 +2,102 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Entry model class.
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * Entry model class
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.models
+ * @since     1.0
  */
 class EntryModel extends BaseElementModel
 {
-	protected $elementType = ElementType::Entry;
-
-	private $_tags;
+	// Constants
+	// =========================================================================
 
 	const LIVE     = 'live';
 	const PENDING  = 'pending';
 	const EXPIRED  = 'expired';
 
+	// Properties
+	// =========================================================================
+
 	/**
-	 * Use the entry's title as its string representation.
-	 *
-	 * @return string
+	 * @var string
 	 */
-	function __toString()
+	protected $elementType = ElementType::Entry;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseElementModel::getFieldLayout()
+	 *
+	 * @return FieldLayoutModel|null
+	 */
+	public function getFieldLayout()
 	{
-		return $this->title;
+		$entryType = $this->getType();
+
+		if ($entryType)
+		{
+			return $entryType->getFieldLayout();
+		}
 	}
 
 	/**
-	 * @access protected
+	 * @inheritDoc BaseElementModel::getLocales()
+	 *
 	 * @return array
 	 */
-	protected function defineAttributes()
+	public function getLocales()
 	{
-		return array_merge(parent::defineAttributes(), array(
-			'sectionId'  => AttributeType::Number,
-			'authorId'   => AttributeType::Number,
-			'title'      => AttributeType::String,
-			'slug'       => AttributeType::String,
-			'postDate'   => AttributeType::DateTime,
-			'expiryDate' => AttributeType::DateTime,
-		));
+		$locales = array();
+
+		foreach ($this->getSection()->getLocales() as $locale)
+		{
+			$locales[$locale->locale] = array('enabledByDefault' => $locale->enabledByDefault);
+		}
+
+		return $locales;
+	}
+
+	/**
+	 * @inheritDoc BaseElementModel::getUrlFormat()
+	 *
+	 * @return string|null
+	 */
+	public function getUrlFormat()
+	{
+		$section = $this->getSection();
+
+		if ($section && $section->hasUrls)
+		{
+			$sectionLocales = $section->getLocales();
+
+			if (isset($sectionLocales[$this->locale]))
+			{
+				if ($this->level > 1)
+				{
+					return $sectionLocales[$this->locale]->nestedUrlFormat;
+				}
+				else
+				{
+					return $sectionLocales[$this->locale]->urlFormat;
+				}
+			}
+		}
+	}
+
+	/**
+	 * Returns the reference string to this element.
+	 *
+	 * @return string|null
+	 */
+	public function getRef()
+	{
+		return $this->getSection()->handle.'/'.$this->slug;
 	}
 
 	/**
@@ -60,6 +110,34 @@ class EntryModel extends BaseElementModel
 		if ($this->sectionId)
 		{
 			return craft()->sections->getSectionById($this->sectionId);
+		}
+	}
+
+	/**
+	 * Returns the type of entry.
+	 *
+	 * @return EntryTypeModel|null
+	 */
+	public function getType()
+	{
+		$section = $this->getSection();
+
+		if ($section)
+		{
+			$sectionEntryTypes = $section->getEntryTypes('id');
+
+			if ($sectionEntryTypes)
+			{
+				if ($this->typeId && isset($sectionEntryTypes[$this->typeId]))
+				{
+					return $sectionEntryTypes[$this->typeId];
+				}
+				else
+				{
+					// Just return the first one
+					return $sectionEntryTypes[array_shift(array_keys($sectionEntryTypes))];
+				}
+			}
 		}
 	}
 
@@ -77,7 +155,7 @@ class EntryModel extends BaseElementModel
 	}
 
 	/**
-	 * Returns the element's status.
+	 * @inheritDoc BaseElementModel::getStatus()
 	 *
 	 * @return string|null
 	 */
@@ -109,44 +187,76 @@ class EntryModel extends BaseElementModel
 	}
 
 	/**
-	 * Returns the entry's tags.
+	 * @inheritDoc BaseElementModel::isEditable()
 	 *
-	 * @return array
+	 * @return bool
 	 */
-	public function getTags()
+	public function isEditable()
 	{
-		if (!isset($this->_tags))
-		{
-			if ($this->id)
-			{
-				$this->_tags = craft()->entries->getTagsByEntryId($this->id);
-			}
-			else
-			{
-				$this->_tags = array();
-			}
-		}
-
-		return $this->_tags;
+		return (
+			craft()->userSession->checkPermission('publishEntries:'.$this->sectionId) && (
+				$this->authorId == craft()->userSession->getUser()->id ||
+				craft()->userSession->checkPermission('publishPeerEntries:'.$this->sectionId) ||
+				$this->getSection()->type == SectionType::Single
+			)
+		);
 	}
 
 	/**
-	 * Sets the entry's tags.
-	 *
-	 * @param array|string $tags
-	 */
-	public function setTags($tags)
-	{
-		$this->_tags = ArrayHelper::stringToArray($tags);
-	}
-
-	/**
-	 * Returns the element's CP edit URL.
+	 * @inheritDoc BaseElementModel::getCpEditUrl()
 	 *
 	 * @return string|false
 	 */
 	public function getCpEditUrl()
 	{
-		return UrlHelper::getCpUrl('entries/'.$this->getSection()->handle.'/'.$this->id);
+		$section = $this->getSection();
+
+		if ($section)
+		{
+			// The slug *might* not be set if this is a Draft and they've deleted it for whatever reason
+			$url = UrlHelper::getCpUrl('entries/'.$section->handle.'/'.$this->id.($this->slug ? '-'.$this->slug : ''));
+
+			if (craft()->isLocalized() && $this->locale != craft()->language)
+			{
+				$url .= '/'.$this->locale;
+			}
+
+			return $url;
+		}
+	}
+
+	/**
+	 * Returns the entry's level (formerly "depth").
+	 *
+	 * @deprecated Deprecated in 2.0. Use 'level' instead.
+	 * @return int|null
+	 */
+	public function depth()
+	{
+		craft()->deprecator->log('EntryModel::depth', 'Entries’ ‘depth’ property has been deprecated. Use ‘level’ instead.');
+		return $this->level;
+	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseModel::defineAttributes()
+	 *
+	 * @return array
+	 */
+	protected function defineAttributes()
+	{
+		return array_merge(parent::defineAttributes(), array(
+			'sectionId'  => AttributeType::Number,
+			'typeId'     => AttributeType::Number,
+			'authorId'   => AttributeType::Number,
+			'postDate'   => AttributeType::DateTime,
+			'expiryDate' => AttributeType::DateTime,
+
+			// Just used for saving entries
+			'parentId'      => AttributeType::Number,
+			'revisionNotes' => AttributeType::String,
+		));
 	}
 }

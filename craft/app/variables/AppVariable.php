@@ -2,20 +2,91 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
+ * Class AppVariable
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
- * App functions
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.variables
+ * @since     1.0
  */
 class AppVariable
 {
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * Returns the Craft edition.
+	 *
+	 * @return string
+	 */
+	public function getEdition()
+	{
+		return craft()->getEdition();
+	}
+
+	/**
+	 * Returns the name of the Craft edition.
+	 *
+	 * @return string
+	 */
+	public function getEditionName()
+	{
+		return craft()->getEditionName();
+	}
+
+	/**
+	 * Returns the edition Craft is actually licensed to run in.
+	 *
+	 * @return int|null
+	 */
+	public function getLicensedEdition()
+	{
+		return craft()->getLicensedEdition();
+	}
+
+	/**
+	 * Returns the name of the edition Craft is actually licensed to run in.
+	 *
+	 * @return string|null
+	 */
+	public function getLicensedEditionName()
+	{
+		return craft()->getLicensedEditionName();
+	}
+
+	/**
+	 * Returns whether Craft is running with the wrong edition.
+	 *
+	 * @return bool
+	 */
+	public function hasWrongEdition()
+	{
+		return craft()->hasWrongEdition();
+	}
+
+	/**
+	 * Returns whether Craft is elligible to be upgraded to a different edition.
+	 *
+	 * @return bool
+	 */
+	public function canUpgradeEdition()
+	{
+		return craft()->canUpgradeEdition();
+	}
+
+	/**
+	 * Returns whether Craft is running on a domain that is eligible to test out
+	 * the editions.
+	 *
+	 * @return bool
+	 */
+	public function canTestEditions()
+	{
+		return craft()->canTestEditions();
+	}
+
 	/**
 	 * Returns the installed Craft version.
 	 *
@@ -23,7 +94,7 @@ class AppVariable
 	 */
 	public function getVersion()
 	{
-		return Craft::getVersion();
+		return craft()->getVersion();
 	}
 
 	/**
@@ -33,7 +104,7 @@ class AppVariable
 	 */
 	public function getBuild()
 	{
-		return Craft::getBuild();
+		return craft()->getBuild();
 	}
 
 	/**
@@ -43,7 +114,7 @@ class AppVariable
 	 */
 	public function getReleaseDate()
 	{
-		return Craft::getReleasedate();
+		return craft()->getReleaseDate();
 	}
 
 	/**
@@ -53,7 +124,7 @@ class AppVariable
 	 */
 	public function getSiteName()
 	{
-		return Craft::getSiteName();
+		return craft()->getSiteName();
 	}
 
 	/**
@@ -63,7 +134,17 @@ class AppVariable
 	 */
 	public function getSiteUrl()
 	{
-		return Craft::getSiteUrl();
+		return craft()->getSiteUrl();
+	}
+
+	/**
+	 * Returns the site UID.
+	 *
+	 * @return string
+	 */
+	public function getSiteUid()
+	{
+		return craft()->getSiteUid();
 	}
 
 	/**
@@ -83,7 +164,37 @@ class AppVariable
 	 */
 	public function isSystemOn()
 	{
-		return Craft::isSystemOn();
+		return craft()->isSystemOn();
+	}
+
+	/**
+	 * Returns whether the update info is cached.
+	 *
+	 * @return bool
+	 */
+	public function isUpdateInfoCached()
+	{
+		return craft()->updates->isUpdateInfoCached();
+	}
+
+	/**
+	 * Returns how many updates are available.
+	 *
+	 * @return int
+	 */
+	public function getTotalAvailableUpdates()
+	{
+		return craft()->updates->getTotalAvailableUpdates();
+	}
+
+	/**
+	 * Returns whether a critical update is available.
+	 *
+	 * @return bool
+	 */
+	public function isCriticalUpdateAvailable()
+	{
+		return craft()->updates->isCriticalUpdateAvailable();
 	}
 
 	/**
@@ -93,12 +204,34 @@ class AppVariable
 	 */
 	public function getMaxUploadSize()
 	{
-		$maxUpload = (int)(ini_get('upload_max_filesize'));
-		$maxPost = (int)(ini_get('post_max_size'));
-		$memoryLimit = (int)(ini_get('memory_limit'));
-		$uploadMb = min($maxUpload, $maxPost, $memoryLimit);
+		$maxUpload = AppHelper::getPhpConfigValueInBytes('upload_max_filesize');
+		$maxPost = AppHelper::getPhpConfigValueInBytes('post_max_size');
+		$memoryLimit = AppHelper::getPhpConfigValueInBytes('memory_limit');
 
-		// Convert MB to B and return
-		return $uploadMb * 1048576; // 1024 x 1024 = 1048576
+		$uploadInBytes = min($maxUpload, $maxPost);
+
+		if ($memoryLimit > 0)
+		{
+			$uploadInBytes = min($uploadInBytes, $memoryLimit);
+		}
+
+		$configLimit = (int) craft()->config->get('maxUploadFileSize');
+
+		if ($configLimit)
+		{
+			$uploadInBytes = min($uploadInBytes, $configLimit);
+		}
+
+		return $uploadInBytes;
+	}
+
+	/**
+	 * Returns a list of file kinds.
+	 *
+	 * @return array
+	 */
+	public function getFileKinds()
+	{
+		return IOHelper::getFileKinds();
 	}
 }

@@ -4,7 +4,7 @@
  *
  * @author Qiang Xue <qiang.xue@gmail.com>
  * @link http://www.yiiframework.com/
- * @copyright Copyright &copy; 2008-2011 Yii Software LLC
+ * @copyright 2008-2013 Yii Software LLC
  * @license http://www.yiiframework.com/license/
  */
 
@@ -17,7 +17,7 @@
  * CBooleanValidator allows for the following placeholders to be specified:
  * <ul>
  * <li>{true}: replaced with value representing the true status {@link trueValue}.</li>
- * <li>{false}: replaced w`ith value representing the false status {@link falseValue}.</li>
+ * <li>{false}: replaced with value representing the false status {@link falseValue}.</li>
  * </ul>
  *
  * @author Qiang Xue <qiang.xue@gmail.com>
@@ -72,6 +72,7 @@ class CBooleanValidator extends CValidator
 	 * @param CModel $object the data object being validated
 	 * @param string $attribute the name of the attribute to be validated.
 	 * @return string the client-side validation script.
+	 * @see CActiveForm::enableClientValidation
 	 * @since 1.1.7
 	 */
 	public function clientValidateAttribute($object,$attribute)

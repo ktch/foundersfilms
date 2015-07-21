@@ -2,66 +2,106 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
  * Stores the data for Rich Text fields.
+ *
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
+ * @license   http://buildwithcraft.com/license Craft License Agreement
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.fieldtypes
+ * @since     1.0
  */
- class RichTextData extends \Twig_Markup
- {
- 	private $_pages;
+class RichTextData extends \Twig_Markup
+{
+	// Properties
+	// =========================================================================
 
- 	/**
- 	 * Returns an array of the individual page contents.
- 	 *
- 	 * @return array
- 	 */
- 	public function getPages()
- 	{
- 		if (!isset($this->_pages))
- 		{
- 			$this->_pages = array();
- 			$pages = explode('<!--pagebreak-->', $this->content);
+	/**
+	 * @var
+	 */
+	private $_pages;
 
- 			foreach ($pages as $page)
- 			{
- 				$this->_pages[] = new \Twig_Markup($page, $this->charset);
- 			}
- 		}
+	/**
+	 * @var string
+	 */
+	private $_rawContent;
 
- 		return $this->_pages;
- 	}
+	// Public Methods
+	// =========================================================================
 
- 	/**
- 	 * Returns a specific page.
- 	 *
- 	 * @param int $pageNumber
- 	 * @return string|null
- 	 */
- 	public function getPage($pageNumber)
- 	{
- 		$pages = $this->getPages();
+	/**
+	 * Constructor
+	 *
+	 * @param string $content
+	 * @param string $charset
+	 *
+	 * @return RichTextData
+	 */
+	public function __construct($content, $charset)
+	{
+		// Save the raw content in case we need it later
+		$this->_rawContent = $content;
 
- 		if (isset($pages[$pageNumber - 1]))
- 		{
- 			return $pages[$pageNumber - 1];
- 		}
- 	}
+		// Parse the ref tags
+		$content = craft()->elements->parseRefs($content);
+		parent::__construct($content, $charset);
+	}
 
- 	/**
- 	 * Returns the total number of pages.
- 	 *
- 	 * @return int
- 	 */
- 	public function getTotalPages()
- 	{
- 		return count($this->getPages());
- 	}
- }
+	/**
+	 * Returns the raw content, with reference tags still in-tact.
+	 *
+	 * @return string
+	 */
+	public function getRawContent()
+	{
+		return $this->_rawContent;
+	}
+
+	/**
+	 * Returns an array of the individual page contents.
+	 *
+	 * @return array
+	 */
+	public function getPages()
+	{
+		if (!isset($this->_pages))
+		{
+			$this->_pages = array();
+			$pages = explode('<!--pagebreak-->', $this->content);
+
+			foreach ($pages as $page)
+			{
+				$this->_pages[] = new \Twig_Markup($page, $this->charset);
+			}
+		}
+
+		return $this->_pages;
+	}
+
+	/**
+	 * Returns a specific page.
+	 *
+	 * @param int $pageNumber
+	 *
+	 * @return string|null
+	 */
+	public function getPage($pageNumber)
+	{
+		$pages = $this->getPages();
+
+		if (isset($pages[$pageNumber - 1]))
+		{
+			return $pages[$pageNumber - 1];
+		}
+	}
+
+	/**
+	 * Returns the total number of pages.
+	 *
+	 * @return int
+	 */
+	public function getTotalPages()
+	{
+		return count($this->getPages());
+	}
+}

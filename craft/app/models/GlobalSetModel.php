@@ -2,28 +2,74 @@
 namespace Craft;
 
 /**
- * Craft by Pixel & Tonic
- *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
- */
-
-/**
  * GlobalSet model class
  *
- * Used for transporting page data throughout the system.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
+ * @license   http://buildwithcraft.com/license Craft License Agreement
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.models
+ * @since     1.0
  */
 class GlobalSetModel extends BaseElementModel
 {
-	protected $elementType = ElementType::GlobalSet;
-
-	private $_fieldLayout;
+	// Properties
+	// =========================================================================
 
 	/**
-	 * @access protected
+	 * @var string
+	 */
+	protected $elementType = ElementType::GlobalSet;
+
+	// Public Methods
+	// =========================================================================
+
+	/**
+	 * Use the global set's name as its string representation.
+	 *
+	 * @return string
+	 */
+	public function __toString()
+	{
+		return $this->name;
+	}
+
+	/**
+	 * @return array
+	 */
+	public function behaviors()
+	{
+		return array(
+			'fieldLayout' => new FieldLayoutBehavior(ElementType::GlobalSet),
+		);
+	}
+
+	/**
+	 * @inheritDoc BaseElementModel::getFieldLayout()
+	 *
+	 * @return FieldLayoutModel|null
+	 */
+	public function getFieldLayout()
+	{
+		return $this->asa('fieldLayout')->getFieldLayout();
+	}
+
+	/**
+	 * @inheritDoc BaseElementModel::getCpEditUrl()
+	 *
+	 * @return string|false
+	 */
+	public function getCpEditUrl()
+	{
+		return UrlHelper::getCpUrl('globals/'.$this->handle);
+	}
+
+	// Protected Methods
+	// =========================================================================
+
+	/**
+	 * @inheritDoc BaseModel::defineAttributes()
+	 *
 	 * @return array
 	 */
 	protected function defineAttributes()
@@ -33,48 +79,5 @@ class GlobalSetModel extends BaseElementModel
 			'handle'        => AttributeType::Handle,
 			'fieldLayoutId' => AttributeType::Number,
 		));
-	}
-
-	/**
-	 * Returns the global set's field layout.
-	 *
-	 * @return FieldLayoutModel
-	 */
-	public function getFieldLayout()
-	{
-		if (!isset($this->_fieldLayout))
-		{
-			if ($this->fieldLayoutId)
-			{
-				$this->_fieldLayout = craft()->fields->getLayoutById($this->fieldLayoutId);
-			}
-
-			if (empty($this->_fieldLayout))
-			{
-				$this->_fieldLayout = new FieldLayoutModel();
-			}
-		}
-
-		return $this->_fieldLayout;
-	}
-
-	/**
-	 * Sets the global set's field layout.
-	 *
-	 * @param FieldLayoutModel $fieldLayout
-	 */
-	public function setFieldLayout(FieldLayoutModel $fieldLayout)
-	{
-		$this->_fieldLayout = $fieldLayout;
-	}
-
-	/**
-	 * Returns the element's CP edit URL.
-	 *
-	 * @return string|false
-	 */
-	public function getCpEditUrl()
-	{
-		return UrlHelper::getCpUrl('globals/'.$this->handle);
 	}
 }

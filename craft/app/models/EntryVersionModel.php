@@ -1,44 +1,28 @@
 <?php
 namespace Craft;
 
+craft()->requireEdition(Craft::Client);
+
 /**
- * Craft by Pixel & Tonic
+ * Class EntryVersionModel
  *
- * @package   Craft
- * @author    Pixel & Tonic, Inc.
- * @copyright Copyright (c) 2013, Pixel & Tonic, Inc.
+ * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
+ * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
  * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @see       http://buildwithcraft.com
+ * @package   craft.app.models
+ * @since     1.0
  */
-
-Craft::requirePackage(CraftPackage::PublishPro);
-
-/**
- *
- */
-class EntryVersionModel extends EntryModel
+class EntryVersionModel extends BaseEntryRevisionModel
 {
-	/**
-	 * @access protected
-	 * @return array
-	 */
-	protected function defineAttributes()
-	{
-		$attributes = parent::defineAttributes();
-
-		$attributes['versionId'] = AttributeType::Number;
-		$attributes['creatorId'] = AttributeType::Number;
-		$attributes['notes'] = AttributeType::String;
-		$attributes['dateCreated'] = AttributeType::DateTime;
-
-		return $attributes;
-	}
+	// Public Methods
+	// =========================================================================
 
 	/**
-	 * Populates a new model instance with a given set of attributes.
+	 * @inheritDoc BaseModel::populateModel()
 	 *
-	 * @static
 	 * @param mixed $attributes
+	 *
 	 * @return EntryVersionModel
 	 */
 	public static function populateModel($attributes)
@@ -50,27 +34,40 @@ class EntryVersionModel extends EntryModel
 
 		// Merge the version and entry data
 		$entryData = $attributes['data'];
-		$fieldContent = $entryData['fields'];
+		$fieldContent = isset($entryData['fields']) ? $entryData['fields'] : null;
 		$attributes['versionId'] = $attributes['id'];
 		$attributes['id'] = $attributes['entryId'];
-		unset($attributes['data'], $entryData['fields'], $attributes['entryId']);
+		$attributes['revisionNotes'] = $attributes['notes'];
+		$title = $entryData['title'];
+		unset($attributes['data'], $entryData['fields'], $attributes['entryId'], $attributes['notes'], $entryData['title']);
 
 		$attributes = array_merge($attributes, $entryData);
 
 		// Initialize the version
 		$version = parent::populateModel($attributes);
-		$version->setContentIndexedByFieldId($fieldContent);
+		$version->getContent()->title = $title;
+
+		if ($fieldContent)
+		{
+			$version->setContentFromRevision($fieldContent);
+		}
 
 		return $version;
 	}
 
+	// Protected Methods
+	// =========================================================================
+
 	/**
-	 * Returns the version's creator.
+	 * @inheritDoc BaseModel::defineAttributes()
 	 *
-	 * @return UserModel|null
+	 * @return array
 	 */
-	public function getCreator()
+	protected function defineAttributes()
 	{
-		return craft()->users->getUserById($this->creatorId);
+		return array_merge(parent::defineAttributes(), array(
+			'versionId'   => AttributeType::Number,
+			'num'         => AttributeType::Number,
+		));
 	}
 }
