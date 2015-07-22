@@ -670,7 +670,18 @@ p.t-type {
 	opacity: 0.7;
 }
 
+/* CATEGORIES
+================================================== */
+ul#categories {
+	margin: 0 0 15px 0;
+	padding: 0;
+	list-style: none;
+}
 
+ul#categories li {
+	margin-right: 8px;
+	display: inline;
+}
 
 /* #Footer
 ================================================== */
@@ -851,13 +862,33 @@ nav select {
 			margin-bottom: 20px;
 		}
 		
+		img.series-image {
+		  max-width: 460px;
+		  width: 100%;
+		  height: auto;
+		  max-height: 259px;
+		}
+		
 	}
 
 	/* Tablet Portrait size to standard 960 (devices and browsers) */
 	@media only screen and (min-width: 768px) and (max-width: 959px) {}
 
 	/* All Mobile Sizes (devices and browser) */
-	@media only screen and (max-width: 767px) {}
+	@media only screen and (max-width: 767px) {
+	ul#categories li {
+		margin-right: 0px;
+		margin-bottom: 3px;
+		display: block;
+	}
+	
+	img.series-image {
+	  max-width: 460px;
+	  width: 100%;
+	  height: auto;
+	  max-height: 259px;
+	}
+	}
 
 	/* Mobile Landscape Size to Tablet Portrait (devices and browsers) */
 	@media only screen and (min-width: 480px) and (max-width: 767px) {

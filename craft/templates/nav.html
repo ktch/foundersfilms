@@ -6,7 +6,7 @@
 			<li><a href="/sponsor">Sponsor</a></li>
 		</ul>
 		
-		<select name="dropdpown" size="1" onChange="scrollTo(this.value)">
+		<select name="dropdpown" size="1" onChange="window.location.replace(this.options[this.selectedIndex].value)">
 			<option value="" selected="selected">Go To</option>
 			<option value="/series">Series</option>
 			<option value="/documentary">Documentary</option>  

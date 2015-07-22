@@ -22,8 +22,11 @@
 			</ul>
 			{% endif %}
 			
-			{% for entry in craft.entries.section(series).find() %}
-			
+			{% for category in craft.categories.slug(craft.request.getSegment(2)).find() %}
+				{% set entries = craft.entries.section('series').relatedTo({targetElement: category}).find() %}
+				
+				{% if entries | length %}
+				{% for entry in entries %}
 				<div class="eight columns">
 					
           <a href="{{ entry.url }}"><h3>{{ entry }}</h3>
@@ -34,6 +37,13 @@
 								
 						<p>{{ entry.body | striptags | truncate('words', '25', ' ...') }}<a href="{{ entry.url }}"> continue reading→</a></p>
 				</div>
+				{% endfor %}
+				
+				{% else %}
+				<div class="sixteen columns">
+				  <p>There are currently no videos belong that belong to this category. <a href="/series">Click here</a> to view all videos.</p>
+				</div>
+				{% endif %}
 			{% endfor %}
 				
 				<div class="clear"></div>
@@ -51,3 +61,4 @@
 		
 	
 	{% endblock %}
+

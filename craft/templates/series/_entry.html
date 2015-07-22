@@ -9,16 +9,12 @@
 				<div class="sixteen columns">
 					
 					<div class="sixteen columns">
-					   	<h3><a href="{{ entry.url }}">{{ entry }}</a></h3>
-					   	<!-- {{ entry.video.description }} -->
-							
+					  <h3><a href="{{ entry.url }}">{{ entry }}</a></h3>
+					  <!-- {{ entry.video.description }} -->
+						<blockquote>{{ entry.pullQuote }}</blockquote>
+						<iframe src="//www.youtube.com/embed/{{ entry.video }}" frameborder="0" allowfullscreen></iframe>	
 						<p>{{ entry.body }}</p>
 					</div>
-						
-						<div class="eight columns">		
-						<blockquote>{{ entry.pullQuote }}</blockquote>
-						<iframe src="//www.youtube.com/embed/{{ entry.video }}" frameborder="0" allowfullscreen></iframe>
-						</div>
 
 						{% for addVideo in entry.addVideos %}
 
