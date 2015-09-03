@@ -12,14 +12,16 @@
 			<div class="container">
 			
 			{% set categories = craft.categories.group('video_categories') %}
-			
+			<h2 style="font-style: italic;">{{ category.title }} Series</h2>
 			{% if categories | length %}
-			<ul id="categories">
-			    <li style="font-weight: bold; text-decoration: underline;">Sort by Categories:</li>
-			    {% nav category in categories %}
-			        <li><a href="{{ category.url }}">{{ category.title }}</a></li>
-			    {% endnav %}
-			</ul>
+			<p style="margin-right: 10px; float: left; font-weight: bold; text-decoration: underline;">Sort by Categories:</p>
+			<select name="dropdpown" size="1" onChange="window.location.replace(this.options[this.selectedIndex].value)" style="float: left; color: #444444; max-width: 125px;">
+				<option value="" selected="selected" disabled>Go To</option>
+				{% nav category in categories %}
+				<option value="{{ category.url }}">{{ category.title }}</option>
+				{% endnav %} 
+			</select>
+			<div style="clear: both; float: none;"></div>			
 			{% endif %}
 			
 			{% for category in craft.categories.slug(craft.request.getSegment(2)).find() %}

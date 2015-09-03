@@ -22,6 +22,9 @@ return array(
 /**
  * The database password to connect with.
  */
+
+
+//PROD
 'password' => '1812war',
 
 /**
