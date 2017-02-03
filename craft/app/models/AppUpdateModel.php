@@ -6,8 +6,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.models
  * @since     1.0
  */
@@ -44,15 +44,11 @@ class AppUpdateModel extends BaseModel
 	 */
 	protected function defineAttributes()
 	{
-		$attributes['localBuild']              = AttributeType::String;
 		$attributes['localVersion']            = AttributeType::String;
 		$attributes['latestVersion']           = AttributeType::String;
-		$attributes['latestBuild']             = AttributeType::String;
 		$attributes['latestDate']              = AttributeType::DateTime;
 		$attributes['targetVersion']           = AttributeType::String;
-		$attributes['targetBuild']             = AttributeType::String;
 		$attributes['realLatestVersion']       = AttributeType::String;
-		$attributes['realLatestBuild']         = AttributeType::String;
 		$attributes['realLatestDate']          = AttributeType::DateTime;
 		$attributes['criticalUpdateAvailable'] = AttributeType::Bool;
 		$attributes['manualUpdateRequired']    = AttributeType::Bool;

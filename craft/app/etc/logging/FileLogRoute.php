@@ -6,8 +6,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.etc.logging
  * @since     1.0
  */
@@ -27,6 +27,12 @@ class FileLogRoute extends \CFileLogRoute
 
 		$this->levels = craft()->config->get('devMode') ? '' : 'error,warning';
 		$this->filter = craft()->config->get('devMode') ? 'Craft\\LogFilter' : null;
+
+		// See: https://github.com/yiisoft/yii/issues/3321#issue-30860430
+		if (AppHelper::isWindows())
+		{
+			$this->rotateByCopy = true;
+		}
 
 		parent::init();
 	}

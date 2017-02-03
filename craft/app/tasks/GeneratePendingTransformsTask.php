@@ -6,8 +6,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @link      http://craftcms.com
  * @package   craft.app.tasks
  * @since     2.0
  */
@@ -52,11 +52,11 @@ class GeneratePendingTransformsTask extends BaseTask
 		{
 			$index = craft()->assetTransforms->getTransformIndexModelById($this->_indexIds[$step]);
 
-            // No transform means a probably already finished transform.
-            if (!$index)
-            {
-                return true;
-            }
+			// No transform means a probably already finished transform.
+			if (!$index)
+			{
+				return true;
+			}
 
 			craft()->assetTransforms->ensureTransformUrlByIndexModel($index);
 		}

@@ -7,8 +7,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.helpers
  * @since     1.3
  */
@@ -67,7 +67,7 @@ class HeaderHelper
 	public static function setContentTypeByExtension($extension)
 	{
 		$extension = strtolower($extension);
-		$mimeTypes = require(Craft::getPathOfAlias('app.framework.utils.mimeTypes').'.php');
+		$mimeTypes = require craft()->path->getFrameworkPath().'utils/mimeTypes.php';
 
 		if (!isset($mimeTypes[$extension]))
 		{

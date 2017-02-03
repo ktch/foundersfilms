@@ -6,8 +6,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @link      http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @link      http://craftcms.com
  * @package   craft.app.elementactions
  * @since     2.3
  */
@@ -151,7 +151,7 @@ abstract class BaseElementAction extends BaseComponentType implements IElementAc
 	/**
 	 * Sets the message that should be displayed to the user after the action is performed.
 	 *
-	 * @param array The message that should be displayed to the user after the action is performed.
+	 * @param string The message that should be displayed to the user after the action is performed.
 	 *
 	 * @return null
 	 */

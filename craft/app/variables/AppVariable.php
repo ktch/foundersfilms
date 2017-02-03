@@ -6,8 +6,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.variables
  * @since     1.0
  */
@@ -101,6 +101,8 @@ class AppVariable
 	 * Returns the installed Craft build.
 	 *
 	 * @return string
+	 * @deprecated
+     * @todo remove in 3.0
 	 */
 	public function getBuild()
 	{
@@ -111,6 +113,8 @@ class AppVariable
 	 * Returns the installed Craft release date.
 	 *
 	 * @return DateTime
+	 * @deprecated
+	 * @todo remove in Craft 3
 	 */
 	public function getReleaseDate()
 	{

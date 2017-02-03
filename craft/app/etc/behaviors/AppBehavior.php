@@ -6,8 +6,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.etc.behaviors
  * @since     1.2
  */
@@ -141,14 +141,19 @@ class AppBehavior extends BaseBehavior
 	 * Returns the installed Craft build.
 	 *
 	 * @return string
+     * @deprecated
+     * @todo remove in 3.0
 	 */
 	public function getBuild()
 	{
-		return $this->getInfo('build');
+        craft()->deprecator->log('getBuild()', 'craft()->getBuild() has been deprecated. As of Craft 2.6.2951, craft()->getVersion() returns the complete version number (X.Y.Z).');
+        preg_match('/^\d+\.\d+\.(\d+)/', $this->getVersion(), $matches);
+
+        return $matches[1];
 	}
 
 	/**
-	 * Returns the installed Craft build.
+	 * Returns the installed Craft schema version.
 	 *
 	 * @return string
 	 */
@@ -160,21 +165,29 @@ class AppBehavior extends BaseBehavior
 	/**
 	 * Returns the installed Craft release date.
 	 *
-	 * @return string
+	 * @return DateTime
+	 * @deprecated
+	 * @todo Remove in v3
 	 */
 	public function getReleaseDate()
 	{
-		return $this->getInfo('releaseDate');
+        craft()->deprecator->log('getReleaseDate()', 'craft()->getReleaseDate() has been deprecated.');
+
+		return new DateTime();
 	}
 
 	/**
 	 * Returns the Craft track.
 	 *
 	 * @return string
+	 * @deprecated
+	 * @todo Remove in v3
 	 */
 	public function getTrack()
 	{
-		return $this->getInfo('track');
+        craft()->deprecator->log('getTrack()', 'craft()->getTrack() has been deprecated.');
+
+		return 'stable';
 	}
 
 	/**
@@ -184,7 +197,7 @@ class AppBehavior extends BaseBehavior
 	 */
 	public function getEdition()
 	{
-		return $this->getInfo('edition');
+		return (int) $this->getInfo('edition');
 	}
 
 	/**
@@ -208,7 +221,7 @@ class AppBehavior extends BaseBehavior
 
 		if ($licensedEdition !== false)
 		{
-			return $licensedEdition;
+			return (int) $licensedEdition;
 		}
 	}
 
@@ -293,15 +306,14 @@ class AppBehavior extends BaseBehavior
 		// Only admins can upgrade Craft
 		if (craft()->userSession->isAdmin())
 		{
-			// If they're running on a testable domain, go for it
-			if ($this->canTestEditions())
-			{
-				return true;
-			}
-
-			// Base this off of what they're actually licensed to use, not what's currently running
+			// Are they either *using* or *licensed to use* something < Craft Pro?
+			$activeEdition = $this->getEdition();
 			$licensedEdition = $this->getLicensedEdition();
-			return ($licensedEdition !== null && $licensedEdition < Craft::Pro);
+
+			return (
+				($activeEdition < Craft::Pro) ||
+				($licensedEdition !== null && $licensedEdition < Craft::Pro)
+			);
 		}
 		else
 		{
@@ -497,8 +509,27 @@ class AppBehavior extends BaseBehavior
 					throw new Exception(Craft::t('Craft appears to be installed but the info table is empty.'));
 				}
 
-				// Prevent an infinite loop in createFromString.
-				$row['releaseDate'] = DateTime::createFromString($row['releaseDate'], null, false);
+				// todo: remove after next breakpiont
+                if (isset($row['build']))
+                {
+                    $version = $row['version'];
+
+                    switch ($row['track'])
+                    {
+                        case 'dev':
+                            $version .= '.0-alpha.'.$row['build'];
+                            break;
+                        case 'beta':
+                            $version .= '.0-beta.'.$row['build'];
+                            break;
+                        default:
+                            $version .= '.'.$row['build'];
+                            break;
+                    }
+
+                    $row['version'] = $version;
+                    unset($row['build'], $row['releaseDate'], $row['track']);
+                }
 
 				$this->_info = new InfoModel($row);
 			}
@@ -530,6 +561,9 @@ class AppBehavior extends BaseBehavior
 		if ($info->validate())
 		{
 			$attributes = $info->getAttributes(null, true);
+
+			// todo: remove after next breakpoint
+			unset($attributes['build'], $attributes['releaseDate'], $attributes['track']);
 
 			if ($this->isInstalled())
 			{
@@ -759,10 +793,16 @@ class AppBehavior extends BaseBehavior
 						}
 					}
 
-					// If they've set a default CP language, use it here.
+					// Is there a default CP language?
 					if ($defaultCpLanguage = craft()->config->get('defaultCpLanguage'))
 					{
-						return $defaultCpLanguage;
+						// Make sure it's one of the site locales
+						$defaultCpLanguage = StringHelper::toLowerCase($defaultCpLanguage);
+
+						if (in_array($defaultCpLanguage, $siteLocaleIds))
+						{
+							return $defaultCpLanguage;
+						}
 					}
 
 					// Otherwise check if the browser's preferred language matches any of the site locales
@@ -815,6 +855,18 @@ class AppBehavior extends BaseBehavior
 			$dbConnection->charset          = craft()->config->get('charset', ConfigFile::Db);
 			$dbConnection->tablePrefix      = $dbConnection->getNormalizedTablePrefix();
 			$dbConnection->driverMap        = array('mysql' => 'Craft\MysqlSchema');
+
+			// Support for Yii's $initSQLs
+			if ($initSQLs = craft()->config->get('initSQLs', ConfigFile::Db))
+			{
+				$dbConnection->initSQLs = $initSQLs;
+			}
+
+			// See if we have any extra PDO attributes passed in.
+			if ($attributes = craft()->config->get('attributes', ConfigFile::Db))
+			{
+				$dbConnection->attributes = $attributes;
+			}
 
 			$dbConnection->init();
 		}
@@ -885,11 +937,11 @@ class AppBehavior extends BaseBehavior
 
 		if (!empty($unixSocket))
 		{
-			return strtolower('mysql:unix_socket='.$unixSocket.';dbname=').craft()->config->get('database', ConfigFile::Db).';';
+			return 'mysql:unix_socket='.$unixSocket.';dbname='.craft()->config->get('database', ConfigFile::Db).';';
 		}
 		else
 		{
-			return strtolower('mysql:host='.craft()->config->get('server', ConfigFile::Db).';dbname=').craft()->config->get('database', ConfigFile::Db).strtolower(';port='.craft()->config->get('port', ConfigFile::Db).';');
+			return 'mysql:host='.craft()->config->get('server', ConfigFile::Db).';dbname='.craft()->config->get('database', ConfigFile::Db).';port='.craft()->config->get('port', ConfigFile::Db).';';
 		}
 	}
 

@@ -1,4 +1,5 @@
-@charset "UTF-8";
+/* Flexbox stuff */
+/* Other */
 /* RTL stuff */
 body.ltr #addlocale .text { padding-right: 30px; }
 body.rtl #addlocale .text { padding-left: 30px; }
@@ -21,3 +22,5 @@ body.ltr #confirmdeletemodal .buttons .spinner { margin-right: -20px; }
 body.rtl #confirmdeletemodal .buttons .spinner { margin-left: -20px; }
 body.ltr #confirmdeletemodal .buttons .spinner { margin-left: -4px; }
 body.rtl #confirmdeletemodal .buttons .spinner { margin-right: -4px; }
+
+/*# sourceMappingURL=locales.css.map */

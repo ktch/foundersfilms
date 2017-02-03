@@ -10,8 +10,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app
  * @since     1.0
  */
@@ -29,7 +29,7 @@ class Craft extends \Yii
 	// =========================================================================
 
 	/**
-	 * Determines if Craft is installed by checking if the info table exists.
+	 * Determines if Craft is installed by checking if the info table exists in the database.
 	 *
 	 * @deprecated Deprecated in 1.3. Use {@link AppBehavior::isInstalled() `craft()->isInstalled()`} instead.
 	 * @return bool
@@ -66,25 +66,27 @@ class Craft extends \Yii
 	/**
 	 * Returns the installed Craft build.
 	 *
-	 * @deprecated Deprecated in 1.3. Use {@link AppBehavior::getBuild() `craft()->getBuild()`} instead.
+	 * @deprecated Deprecated in 1.3.
 	 * @return string
+	 * @todo Remove in v3
 	 */
 	public static function getBuild()
 	{
-		craft()->deprecator->log('Craft::getBuild()', 'Craft::getBuild() has been deprecated. Use craft()->getBuild() instead.');
-		return craft()->getBuild();
+		craft()->deprecator->log('Craft::getBuild()', 'Craft::getBuild() has been deprecated.');
+		return null;
 	}
 
 	/**
 	 * Returns the installed Craft release date.
 	 *
-	 * @deprecated Deprecated in 1.3. Use {@link AppBehavior::getReleaseDate() `craft()->getReleaseDate()`} instead.
+	 * @deprecated Deprecated in 1.3.
 	 * @return string
+	 * @todo Remove in v3
 	 */
 	public static function getReleaseDate()
 	{
-		craft()->deprecator->log('Craft::getReleaseDate()', 'Craft::getReleaseDate() has been deprecated. Use craft()->getReleaseDate() instead.');
-		return craft()->getReleaseDate();
+		craft()->deprecator->log('Craft::getReleaseDate()', 'Craft::getReleaseDate() has been deprecated.');
+		return null;
 	}
 
 	/**
@@ -92,11 +94,12 @@ class Craft extends \Yii
 	 *
 	 * @deprecated Deprecated in 1.3. Use {@link AppBehavior::getTrack() `craft()->getTrack()`} instead.
 	 * @return string
+	 * @todo Remove in v3
 	 */
 	public static function getTrack()
 	{
-		craft()->deprecator->log('Craft::getTrack()', 'Craft::getTrack() has been deprecated. Use craft()->getTrack() instead.');
-		return craft()->getTrack();
+		craft()->deprecator->log('Craft::getTrack()', 'Craft::getTrack() has been deprecated.');
+		return null;
 	}
 
 	/**
@@ -177,7 +180,7 @@ class Craft extends \Yii
 	}
 
 	/**
-	 * Returns whether the system is in maintenance mode.
+	 * Returns whether the system is in maintenance mode or not.
 	 *
 	 * @deprecated Deprecated in 1.3. Use {@link AppBehavior::isInMaintenanceMode() `craft()->isInMaintenanceMode()`} instead.
 	 * @return bool
@@ -228,7 +231,7 @@ class Craft extends \Yii
 	}
 
 	/**
-	 * Updates the info row.
+	 * Updates the info row with new information.
 	 *
 	 * @param InfoModel $info The InfoModel that you want to save.
 	 *
@@ -342,7 +345,7 @@ class Craft extends \Yii
 		else
 		{
 			$file = $path.'.php';
-			static::_importFile($file);
+			static::_importFile(realpath($file));
 
 			if ($forceInclude)
 			{
@@ -405,7 +408,7 @@ class Craft extends \Yii
 	 */
 	public static function log($msg, $level = LogLevel::Info, $force = false, $category = 'application', $plugin = null)
 	{
-		if ((YII_DEBUG && YII_TRACE_LEVEL > 0 && $level !== LogLevel::Profile) || $force)
+		if (YII_DEBUG && YII_TRACE_LEVEL > 0 && $level !== LogLevel::Profile)
 		{
 			$traces = debug_backtrace();
 			$count = 0;
@@ -452,7 +455,7 @@ class Craft extends \Yii
 		$file = str_replace('\\', '/', $file);
 
 		// Don't add any Composer vendor files to the class map.
-		if (strpos($file, '/app/vendor/') === false)
+		if (strpos($file, realpath(CRAFT_VENDOR_PATH)) === false)
 		{
 			$class = __NAMESPACE__.'\\'.pathinfo($file, PATHINFO_FILENAME);
 			\Yii::$classMap[$class] = $file;

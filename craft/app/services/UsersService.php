@@ -8,8 +8,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.services
  * @since     1.0
  */
@@ -137,7 +137,7 @@ class UsersService extends BaseApplicationComponent
 	 * Returns whether a verification code is valid for the given user.
 	 *
 	 * This method first checks if the code has expired past the
-	 * [verificationCodeDuration](http://buildwithcraft.com/docs/config-settings#verificationCodeDuration) config
+	 * [verificationCodeDuration](http://craftcms.com/docs/config-settings#verificationCodeDuration) config
 	 * setting. If it is still valid, then, the checks the validity of the contents of the code.
 	 *
 	 * @param UserModel $user The user to check the code for.
@@ -337,8 +337,8 @@ class UsersService extends BaseApplicationComponent
 					if ($user->username != $oldUsername)
 					{
 						// Rename the user's photo directory
-						$cleanOldUsername = AssetsHelper::cleanAssetName($oldUsername, false);
-						$cleanUsername = AssetsHelper::cleanAssetName($user->username, false);
+						$cleanOldUsername = AssetsHelper::cleanAssetName($oldUsername, false, true);
+						$cleanUsername = AssetsHelper::cleanAssetName($user->username, false, true);
 						$oldFolder = craft()->path->getUserPhotosPath().$cleanOldUsername;
 						$newFolder = craft()->path->getUserPhotosPath().$cleanUsername;
 
@@ -524,7 +524,13 @@ class UsersService extends BaseApplicationComponent
 		{
 			// We want to hide the CP trigger if they don't have access to the CP.
 			$path = craft()->config->get('actionTrigger').'/users/verifyemail';
-			$url = UrlHelper::getSiteUrl($path, array('code' => $unhashedVerificationCode, 'id' => $userRecord->uid), craft()->request->isSecureConnection() ? 'https' : 'http');
+			$params = array(
+				'code' => $unhashedVerificationCode,
+				'id' => $userRecord->uid
+			);
+
+			$locale = $user->preferredLocale ?: craft()->i18n->getPrimarySiteLocaleId();
+			$url = UrlHelper::getSiteUrl($path, $params, UrlHelper::getProtocolForTokenizedUrl(), $locale);
 		}
 
 		return $url;
@@ -548,7 +554,8 @@ class UsersService extends BaseApplicationComponent
 			'code' => $unhashedVerificationCode,
 			'id' => $userRecord->uid
 		);
-		$scheme = craft()->request->isSecureConnection() ? 'https' : 'http';
+
+		$scheme = UrlHelper::getProtocolForTokenizedUrl();
 
 		if ($user->can('accessCp'))
 		{
@@ -556,7 +563,8 @@ class UsersService extends BaseApplicationComponent
 		}
 		else
 		{
-			return UrlHelper::getSiteUrl($path, $params, $scheme);
+			$locale = $user->preferredLocale ?: craft()->i18n->getPrimarySiteLocaleId();
+			return UrlHelper::getSiteUrl($path, $params, $scheme, $locale);
 		}
 	}
 
@@ -564,22 +572,23 @@ class UsersService extends BaseApplicationComponent
 	 * Crops and saves a user’s photo.
 	 *
 	 * @param string    $fileName The name of the file.
-	 * @param Image     $image    The image.
+	 * @param BaseImage $image    The image.
 	 * @param UserModel $user     The user.
 	 *
 	 * @throws \Exception
 	 * @return bool Whether the photo was saved successfully.
 	 */
-	public function saveUserPhoto($fileName, Image $image, UserModel $user)
+	public function saveUserPhoto($fileName, BaseImage $image, UserModel $user)
 	{
-		$userName = AssetsHelper::cleanAssetName($user->username, false);
+		$userName = AssetsHelper::cleanAssetName($user->username, false, true);
 		$userPhotoFolder = craft()->path->getUserPhotosPath().$userName.'/';
 		$targetFolder = $userPhotoFolder.'original/';
 
 		IOHelper::ensureFolderExists($userPhotoFolder);
 		IOHelper::ensureFolderExists($targetFolder);
 
-		$targetPath = $targetFolder.AssetsHelper::cleanAssetName($fileName);
+		$fileName = AssetsHelper::cleanAssetName($fileName);
+		$targetPath = $targetFolder.$fileName;
 
 		$result = $image->saveAs($targetPath);
 
@@ -820,8 +829,8 @@ class UsersService extends BaseApplicationComponent
 			{
 				$userRecord->username = $user->unverifiedEmail;
 
-				$oldProfilePhotoPath = craft()->path->getUserPhotosPath().AssetsHelper::cleanAssetName($oldEmail);
-				$newProfilePhotoPath = craft()->path->getUserPhotosPath().AssetsHelper::cleanAssetName($user->unverifiedEmail);
+				$oldProfilePhotoPath = craft()->path->getUserPhotosPath().AssetsHelper::cleanAssetName($oldEmail, false, true);
+				$newProfilePhotoPath = craft()->path->getUserPhotosPath().AssetsHelper::cleanAssetName($user->unverifiedEmail, false, true);
 
 				// Update the user profile photo folder name, if it exists.
 				if (IOHelper::folderExists($oldProfilePhotoPath))
@@ -1270,7 +1279,7 @@ class UsersService extends BaseApplicationComponent
 	 * Deletes any pending users that have shown zero sense of urgency and are just taking up space.
 	 *
 	 * This method will check the
-	 * [purgePendingUsersDuration](http://buildwithcraft.com/docs/config-settings#purgePendingUsersDuration) config
+	 * [purgePendingUsersDuration](http://craftcms.com/docs/config-settings#purgePendingUsersDuration) config
 	 * setting, and if it is set to a valid duration, it will delete any user accounts that were created that duration
 	 * ago, and have still not activated their account.
 	 *
@@ -1285,16 +1294,20 @@ class UsersService extends BaseApplicationComponent
 			$pastTimeStamp = $expire->sub($interval)->getTimestamp();
 			$pastTime = DateTimeHelper::formatTimeForDb($pastTimeStamp);
 
-			$ids = craft()->db->createCommand()->select('id')
+			$userIds = craft()->db->createCommand()->select('id')
 				->from('users')
 				->where('pending=1 AND verificationCodeIssuedDate < :pastTime', array(':pastTime' => $pastTime))
 				->queryColumn();
 
-			$affectedRows = craft()->db->createCommand()->delete('elements', array('in', 'id', $ids));
-
-			if ($affectedRows > 0)
+			if ($userIds)
 			{
-				Craft::log('Just deleted '.$affectedRows.' pending users from the users table, because the were more than '.$duration.' old', LogLevel::Info, true);
+				foreach ($userIds as $userId)
+				{
+					$user = $this->getUserById($userId);
+					$this->deleteUser($user);
+
+					Craft::log('Just deleted pending userId '.$userId.' ('.$user->username.'), because the were more than '.$duration.' old', LogLevel::Info, true);
+				}
 			}
 		}
 	}

@@ -6,8 +6,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.services
  * @since     1.0
  */
@@ -36,7 +36,7 @@ class LocalizationService extends BaseApplicationComponent
 
 	/**
 	 * Returns an array of all known locales. The list of known locales is based on whatever files exist in
-	 * craft/app/framework/i18n/data/.
+	 * framework/i18n/data/.
 	 *
 	 * @return array An array of LocaleModel objects.
 	 */
@@ -274,6 +274,11 @@ class LocalizationService extends BaseApplicationComponent
 
 				craft()->db->createCommand()->insertAll('categorygroups_i18n', array('groupId', 'locale', 'urlFormat', 'nestedUrlFormat'), $newCategoryLocales);
 			}
+
+			// Fire an 'onAddLocale' event
+			$this->onAddLocale(new Event($this, array(
+				'localeId' => $localeId,
+			)));
 
 			// Re-save all of the localizable elements
 			if (!craft()->tasks->areTasksPending('ResaveAllElements'))
@@ -605,6 +610,18 @@ class LocalizationService extends BaseApplicationComponent
 	public function onBeforeDeleteLocale(Event $event)
 	{
 		$this->raiseEvent('onBeforeDeleteLocale', $event);
+	}
+
+	/**
+	 * Fires an 'onAddLocale' event.
+	 *
+	 * @param Event $event
+	 *
+	 * @return null
+	 */
+	public function onAddLocale(Event $event)
+	{
+		$this->raiseEvent('onAddLocale', $event);
 	}
 
 	/**

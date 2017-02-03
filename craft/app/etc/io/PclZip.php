@@ -6,8 +6,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.etc.io
  * @since     1.0
  */
@@ -171,13 +171,16 @@ class PclZip implements IZip
 
 		$filesToAdd = array();
 
-		foreach ($folderContents as $itemToZip)
+		if ($folderContents)
 		{
-			if (IOHelper::isReadable($itemToZip))
+			foreach ($folderContents as $itemToZip)
 			{
-				if ((IOHelper::folderExists($itemToZip) && IOHelper::isFolderEmpty($itemToZip)) || IOHelper::fileExists($itemToZip))
+				if (IOHelper::isReadable($itemToZip))
 				{
-					$filesToAdd[] = $itemToZip;
+					if ((IOHelper::folderExists($itemToZip) && IOHelper::isFolderEmpty($itemToZip)) || IOHelper::fileExists($itemToZip))
+					{
+						$filesToAdd[] = $itemToZip;
+					}
 				}
 			}
 		}

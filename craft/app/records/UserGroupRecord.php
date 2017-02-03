@@ -1,15 +1,13 @@
 <?php
 namespace Craft;
 
-craft()->requireEdition(Craft::Pro);
-
 /**
  * Class UserGroupRecord
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.records
  * @since     1.0
  */
@@ -49,6 +47,19 @@ class UserGroupRecord extends BaseRecord
 	{
 		return array(
 			'ordered' => array('order' => 'name'),
+		);
+	}
+
+	/**
+	 * @inheritDoc BaseRecord::defineIndexes()
+	 *
+	 * @return array
+	 */
+	public function defineIndexes()
+	{
+		return array(
+			array('columns' => array('name'), 'unique' => true),
+			array('columns' => array('handle'), 'unique' => true),
 		);
 	}
 

@@ -6,8 +6,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.services
  * @since     2.0
  */
@@ -181,7 +181,6 @@ class DeprecatorService extends BaseApplicationComponent
 		$log->class  = !empty($traces[1]['class'])    ? $traces[1]['class']    : null;
 		$log->method = !empty($traces[1]['function']) ? $traces[1]['function'] : null;
 
-
 		$isTemplateRendering = (craft()->request->isSiteRequest() && craft()->templates->isRendering());
 
 		if ($isTemplateRendering)
@@ -235,9 +234,7 @@ class DeprecatorService extends BaseApplicationComponent
 						break;
 					}
 				}
-
 			}
-
 
 			$logTraces[] = $logTrace;
 		}

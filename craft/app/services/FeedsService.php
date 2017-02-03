@@ -8,8 +8,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.services
  * @since     1.0
  */
@@ -29,7 +29,7 @@ class FeedsService extends BaseApplicationComponent
 
 		// Import this here to ensure that libs like SimplePie are using our version of the class and not any server's
 		// random version.
-		require_once(Craft::getPathOfAlias('app.vendor.simplepie.simplepie.idn.').DIRECTORY_SEPARATOR.'idna_convert.class.php');
+        require_once craft()->path->getVendorPath().'simplepie/simplepie/idn/idna_convert.class.php';
 	}
 
 	/**

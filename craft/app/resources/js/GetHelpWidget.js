@@ -1,11 +1,3 @@
-/**
- * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
- * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
- * @package   craft.app.resources
- */
-
 (function($) {
 
 
@@ -30,6 +22,8 @@
 		{
 			this.widgetId = widgetId;
 
+			Craft.GetHelpWidget.widgets[this.widgetId] = this;
+
 			this.$widget = $('#widget'+widgetId);
 			this.$message = this.$widget.find('.message:first');
 			this.$fromEmail = this.$widget.find('.fromEmail:first');
@@ -41,15 +35,9 @@
 			this.$error = this.$widget.find('.error:first');
 			this.$form = this.$widget.find('form:first');
 			this.$form.prepend('<input type="hidden" name="widgetId" value="' + this.widgetId + '" />');
-
+			this.$form.prepend(Craft.getCsrfInput());
 
 			this.addListener(this.$sendBtn, 'activate', 'sendMessage');
-			if (typeof Craft.widgets == 'undefined')
-			{
-				Craft.widgets = {};
-			}
-
-			Craft.widgets[this.widgetId] = this;
 		},
 
 		sendMessage: function()
@@ -110,6 +98,9 @@
 
 			this.$iframe.html('');
 		}
+	},
+	{
+		widgets: {}
 	});
 
 

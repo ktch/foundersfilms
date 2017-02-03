@@ -1,11 +1,3 @@
-/**
- * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
- * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
- * @package   craft.app.resources
- */
-
 (function($) {
 
 Craft.UpdatesWidget = Garnish.Base.extend(
@@ -23,18 +15,16 @@ Craft.UpdatesWidget = Garnish.Base.extend(
 
 		if (!cached)
 		{
-			this.lookLikeWereChecking();
-
-			Craft.cp.on('checkForUpdates', $.proxy(function(ev) {
-				this.showUpdateInfo(ev.updateInfo);
-			}, this))
+			this.checkForUpdates(false);
 		}
 	},
 
 	initBtn: function()
 	{
 		this.$btn = this.$body.find('.btn:first');
-		this.addListener(this.$btn, 'click', $.proxy(this, 'checkForUpdates'));
+		this.addListener(this.$btn, 'click', function() {
+			this.checkForUpdates(true);
+		});
 	},
 
 	lookLikeWereChecking: function()
@@ -58,12 +48,7 @@ Craft.UpdatesWidget = Garnish.Base.extend(
 		}
 
 		this.lookLikeWereChecking();
-
-		var data = {
-			forceRefresh: true
-		};
-
-		Craft.postActionRequest('app/checkForUpdates', data, $.proxy(this, 'showUpdateInfo'));
+		Craft.cp.checkForUpdates(forceRefresh, $.proxy(this, 'showUpdateInfo'));
 	},
 
 	showUpdateInfo: function(info)
@@ -72,13 +57,15 @@ Craft.UpdatesWidget = Garnish.Base.extend(
 
 		if (info.total)
 		{
+			var updateText;
+
 			if (info.total == 1)
 			{
-				var updateText = Craft.t('One update available!');
+				updateText = Craft.t('One update available!');
 			}
 			else
 			{
-				var updateText = Craft.t('{total} updates available!', { total: info.total });
+				updateText = Craft.t('{total} updates available!', { total: info.total });
 			}
 
 			this.$body.html(

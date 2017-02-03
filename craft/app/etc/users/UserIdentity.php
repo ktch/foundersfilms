@@ -7,8 +7,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.etc.users
  * @since     1.0
  */
@@ -24,6 +24,7 @@ class UserIdentity extends \CUserIdentity
 	const ERROR_NO_CP_ACCESS            = 54;
 	const ERROR_NO_CP_OFFLINE_ACCESS    = 55;
 	const ERROR_PENDING_VERIFICATION    = 56;
+	const ERROR_NO_SITE_OFFLINE_ACCESS  = 57;
 
 	// Properties
 	// =========================================================================
@@ -67,10 +68,18 @@ class UserIdentity extends \CUserIdentity
 
 		if ($user)
 		{
+			// Add a little randomness in the timing of the response.
+			$this->_slowRoll();
 			return $this->_processUserStatus($user);
 		}
 		else
 		{
+			// Spin some cycles validating a random password hash.
+			craft()->users->validatePassword('$2y$13$L.NLoP5bLzBTP66WendST.4uKn4CTz7ngo9XzVDCfv8yfdME7NEwa', $this->password);
+
+			// Add a little randomness in the timing of the response.
+			$this->_slowRoll();
+
 			$this->errorCode = static::ERROR_USERNAME_INVALID;
 			return false;
 		}
@@ -127,7 +136,19 @@ class UserIdentity extends \CUserIdentity
 
 			case UserStatus::Locked:
 			{
-				$this->errorCode = $this->_getLockedAccountErrorCode();
+				// If the account is locked, but they just entered a valid password
+				if (craft()->users->validatePassword($user->password, $this->password))
+				{
+					// Let them know how much time they have to wait (if any) before their account is unlocked.
+					$this->errorCode = $this->_getLockedAccountErrorCode();
+				}
+				else
+				{
+					// Otherwise, just give them the invalid username/password message to
+					// help prevent user enumeration.
+					$this->errorCode = static::ERROR_USERNAME_INVALID;
+				}
+
 				break;
 			}
 
@@ -162,6 +183,10 @@ class UserIdentity extends \CUserIdentity
 					{
 						$this->errorCode = static::ERROR_NO_CP_OFFLINE_ACCESS;
 					}
+					else if (craft()->request->isSiteRequest() && !craft()->isSystemOn() && !$user->can('accessSiteWhenSystemIsOff'))
+					{
+						$this->errorCode = static::ERROR_NO_SITE_OFFLINE_ACCESS;
+					}
 					else
 					{
 						// Everything is good.
@@ -172,15 +197,7 @@ class UserIdentity extends \CUserIdentity
 				{
 					craft()->users->handleInvalidLogin($user);
 
-					// Was that one bad password too many?
-					if ($user->status == UserStatus::Locked)
-					{
-						$this->errorCode = $this->_getLockedAccountErrorCode();
-					}
-					else
-					{
-						$this->errorCode = static::ERROR_PASSWORD_INVALID;
-					}
+					$this->errorCode = static::ERROR_PASSWORD_INVALID;
 				}
 				break;
 			}
@@ -210,5 +227,14 @@ class UserIdentity extends \CUserIdentity
 		{
 			return static::ERROR_ACCOUNT_LOCKED;
 		}
+	}
+
+	/**
+	 * Introduces a random delay into the script to help prevent timing enumeration attacks.
+	 */
+	private function _slowRoll()
+	{
+		// Delay randomly between 0 and 1.5 seconds.
+		usleep(mt_rand(0, 1500000));
 	}
 }

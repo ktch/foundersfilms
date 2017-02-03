@@ -1,11 +1,3 @@
-/**
- * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
- * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
- * @package   craft.app.resources
- */
-
 (function($) {
 
 
@@ -16,21 +8,18 @@ Craft.Updater = Garnish.Base.extend(
 	$errorDetails: null,
 	data: null,
 
-	init: function(handle, manualUpdate)
+	init: function(data)
 	{
 		this.$graphic = $('#graphic');
 		this.$status = $('#status');
 
-		if (!handle)
+		if (!data || !data.handle)
 		{
 			this.showError(Craft.t('Unable to determine what to update.'));
 			return;
 		}
 
-		this.data = {
-			handle: handle,
-			manualUpdate: manualUpdate
-		};
+		this.data = data;
 
 		this.postActionRequest('update/prepare');
 	},
@@ -112,7 +101,7 @@ Craft.Updater = Garnish.Base.extend(
 				'<p><strong class="code">'+Craft.t('Status:')+'</strong> '+Craft.escapeHtml(jqXHR.statusText)+'</p>' +
 				'<p><strong class="code">'+Craft.t('Response:')+'</strong> '+Craft.escapeHtml(jqXHR.responseText)+'</p>' +
 			'</div>' +
-			'<a class="btn submit big" href="mailto:support@buildwithcraft.com' +
+			'<a class="btn submit big" href="mailto:support@craftcms.com' +
 				'?subject='+encodeURIComponent('Craft update failure') +
 				'&body='+encodeURIComponent(
 					'Describe what happened here.\n\n' +
@@ -122,7 +111,7 @@ Craft.Updater = Garnish.Base.extend(
 				) +
 			'">' +
 				Craft.t('Send for help') +
-			'</a>'
+			'</a>';
 
 		this.updateStatus(errorText);
 	},

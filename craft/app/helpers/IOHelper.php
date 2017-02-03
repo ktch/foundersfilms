@@ -6,13 +6,18 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.helpers
  * @since     1.0
  */
 class IOHelper
 {
+	// Public Methods
+	// =========================================================================
+
+	private static $_fileKinds;
+
 	// Public Methods
 	// =========================================================================
 
@@ -101,7 +106,7 @@ class IOHelper
 	 */
 	public static function getFile($path, $suppressErrors = false)
 	{
-		if (static::fileExists($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors))
 		{
 			return new File($path);
 		}
@@ -119,7 +124,7 @@ class IOHelper
 	 */
 	public static function getFolder($path, $suppressErrors = false)
 	{
-		if (static::folderExists($path, $suppressErrors))
+		if (static::folderExists($path, false, $suppressErrors))
 		{
 			return new Folder($path);
 		}
@@ -137,9 +142,9 @@ class IOHelper
 	 */
 	public static function getFolders($path, $suppressErrors = false)
 	{
-		$path = static::normalizePathSeparators($path, $suppressErrors);
+		$path = static::normalizePathSeparators($path);
 
-		if (static::folderExists($path, $suppressErrors))
+		if (static::folderExists($path, false, $suppressErrors))
 		{
 			$folders = $suppressErrors ? @glob($path.'*', GLOB_ONLYDIR) : glob($path.'*', GLOB_ONLYDIR);
 
@@ -147,7 +152,7 @@ class IOHelper
 			{
 				foreach ($folders as $key => $folder)
 				{
-					$folders[$key] = static::normalizePathSeparators($folder, $suppressErrors);
+					$folders[$key] = static::normalizePathSeparators($folder);
 				}
 
 				return $folders;
@@ -167,11 +172,22 @@ class IOHelper
 	 */
 	public static function getFiles($path, $suppressErrors = false)
 	{
-		$path = static::normalizePathSeparators($path, $suppressErrors);
+		$path = static::normalizePathSeparators($path);
 
-		if (static::folderExists($path, $suppressErrors))
+		if (static::folderExists($path, false, $suppressErrors))
 		{
-			return $suppressErrors ? @glob($path.'*.*') : glob($path.'*');
+			$glob = $suppressErrors ? @glob($path.'*') : glob($path.'*');
+			$files = array();
+
+			foreach ($glob as $file)
+			{
+				if ($suppressErrors ? @is_file($file) : is_file($file))
+				{
+					$files[] = static::normalizePathSeparators($file);
+				}
+			}
+
+			return $files;
 		}
 
 		return false;
@@ -234,14 +250,13 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::folderExists($path, $suppressErrors))
+		if (static::folderExists($path, false, $suppressErrors))
 		{
-			$path = rtrim(str_replace('\\', '/', $path), '/').'/';
 			return static::isWritable($path.uniqid(mt_rand()).'.tmp', $suppressErrors);
 		}
 
 		// Check tmp file for read/write capabilities
-		$rm = static::fileExists($path, $suppressErrors);
+		$rm = static::fileExists($path, false, $suppressErrors);
 		$f = @fopen($path, 'a');
 
 		if ($f === false)
@@ -341,8 +356,8 @@ class IOHelper
 	}
 
 	/**
-	 * If the path points to a real file, we call {@link \CFileHelper::getMimeType}, otherwise
-	 * {@link \CFileHelper::getMimeTypeByExtension}
+	 * If the path points to a real file, we call {@link FileHelper::getMimeType()}, otherwise
+	 * {@link FileHelper::getMimeTypeByExtension()}
 	 *
 	 * @param string $path The path to test.
 	 *
@@ -352,16 +367,16 @@ class IOHelper
 	{
 		if (@file_exists($path))
 		{
-			return \CFileHelper::getMimeType($path);
+			return FileHelper::getMimeType($path);
 		}
 		else
 		{
-			return \CFileHelper::getMimeTypeByExtension($path);
+			return FileHelper::getMimeTypeByExtension($path);
 		}
 	}
 
 	/**
-	 * A wrapper for {@link \CFileHelper::getMimeTypeByExtension}.
+	 * A wrapper for {@link FileHelper::getMimeTypeByExtension()}.
 	 *
 	 * @param  string $path The path to test.
 	 *
@@ -369,7 +384,7 @@ class IOHelper
 	 */
 	public static function getMimeTypeByExtension($path)
 	{
-		return  \CFileHelper::getMimeTypeByExtension($path);
+		return FileHelper::getMimeTypeByExtension($path);
 	}
 
 	/**
@@ -385,7 +400,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::fileExists($path, $suppressErrors) || static::folderExists($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors) || static::folderExists($path, false, $suppressErrors))
 		{
 			$timeStamp = $suppressErrors ? @filemtime($path) : filemtime($path);
 			return new DateTime('@'.$timeStamp);
@@ -408,7 +423,7 @@ class IOHelper
 
 		$path = static::normalizePathSeparators($path);
 
-		if (static::fileExists($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors))
 		{
 			return sprintf("%u", $suppressErrors ? @filesize($path) : filesize($path));
 		}
@@ -428,7 +443,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::folderExists($path, $suppressErrors))
+		if (static::folderExists($path, false, $suppressErrors))
 		{
 			return sprintf("%u", static::_folderSize($path, $suppressErrors));
 		}
@@ -446,15 +461,29 @@ class IOHelper
 	 */
 	public static function normalizePathSeparators($path)
 	{
-		// Don't normalize if it looks like the path starts on a network share.
+		$isUNC = false;
+
+		// Special case for normalizing UNC network share paths.
 		if (isset($path[0]) && isset($path[1]))
 		{
-			if ($path[0] !== '\\' && $path[1] !== '\\')
+			if (($path[0] == '\\' && $path[1] == '\\') ||($path[0] == '/' && $path[1] == '/') )
 			{
+				$path = mb_substr($path, 2);
 				$path = str_replace('\\', '/', $path);
+
+				// Add the share back in
+				$path = '\\\\'.$path;
+				$isUNC = true;
 			}
 		}
 
+		if (!$isUNC)
+		{
+			// Make everything forward slash.
+			$path = str_replace('\\', '/', $path);
+		}
+
+		// Replace any double forwards with singles.
 		$path = str_replace('//', '/', $path);
 
 		// Check if the path is just a slash.  If the server has openbase_dir restrictions in place calling is_dir on it
@@ -465,7 +494,7 @@ class IOHelper
 			// Always suppress errors here because of openbase_dir, too.
 			if (@is_dir($path))
 			{
-				$path = rtrim($path, '/').'/';
+				$path = rtrim($path, '\/').'/';
 			}
 		}
 
@@ -484,7 +513,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if ((static::fileExists($path, $suppressErrors) && static::getFileSize($path, $suppressErrors) == 0))
+		if ((static::fileExists($path, false, $suppressErrors) && static::getFileSize($path, $suppressErrors) == 0))
 		{
 			return true;
 		}
@@ -505,7 +534,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if ((static::folderExists($path, $suppressErrors) && static::getFolderSize($path, $suppressErrors) == 0))
+		if ((static::folderExists($path, false, $suppressErrors) && static::getFolderSize($path, $suppressErrors) == 0))
 		{
 			return true;
 		}
@@ -526,7 +555,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::fileExists($path, $suppressErrors) || static::folderExists($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors) || static::folderExists($path, false, $suppressErrors))
 		{
 			$owner = $suppressErrors ? @fileowner($path) : fileowner($path);
 		}
@@ -558,7 +587,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::fileExists($path, $suppressErrors) || static::folderExists($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors) || static::folderExists($path, false, $suppressErrors))
 		{
 			$group = $suppressErrors ? @filegroup($path) : filegroup($path);
 		}
@@ -589,7 +618,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::fileExists($path, $suppressErrors) || static::folderExists($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors) || static::folderExists($path, false, $suppressErrors))
 		{
 			return mb_substr(sprintf('%o', $suppressErrors ? @fileperms($path) : fileperms($path)), -4);
 		}
@@ -614,7 +643,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::folderExists($path, $suppressErrors) && static::isReadable($path, $suppressErrors))
+		if (static::folderExists($path, false, $suppressErrors) && static::isReadable($path, $suppressErrors))
 		{
 			if (($contents = static::_folderContents($path, $recursive, $filter, $includeHiddenFiles, $suppressErrors)) !== false)
 			{
@@ -642,7 +671,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::fileExists($path, $suppressErrors) && static::isReadable($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors) && static::isReadable($path, $suppressErrors))
 		{
 			if ($array)
 			{
@@ -680,7 +709,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (!static::fileExists($path, $suppressErrors))
+		if (!static::fileExists($path, false, $suppressErrors))
 		{
 			if (($handle = $suppressErrors ? @fopen($path, 'w') : fopen($path, 'w')) === false)
 			{
@@ -715,7 +744,7 @@ class IOHelper
 
 		$path = static::normalizePathSeparators($path);
 
-		if (!static::folderExists($path, $suppressErrors))
+		if (!static::folderExists($path, false, $suppressErrors))
 		{
 			$oldumask = $suppressErrors ? @umask(0) : umask(0);
 
@@ -731,7 +760,7 @@ class IOHelper
 			return new Folder($path);
 		}
 
-		Craft::log('Tried to create a folder at '.$path.', but the folder already exists.', LogLevel::Error);
+		Craft::log('Tried to create a folder at '.$path.', but the folder already exists.', LogLevel::Warning);
 		return false;
 	}
 
@@ -752,11 +781,11 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (!static::fileExists($path, $suppressErrors) && $autoCreate)
+		if (!static::fileExists($path, false, $suppressErrors) && $autoCreate)
 		{
 			$folderName = static::getFolderName($path, true, $suppressErrors);
 
-			if (!static::folderExists($folderName, $suppressErrors))
+			if (!static::folderExists($folderName, false, $suppressErrors))
 			{
 				if (!static::createFolder($folderName, $suppressErrors))
 				{
@@ -909,21 +938,24 @@ class IOHelper
 			return false;
 		}
 
-		if (static::fileExists($path, $suppressErrors) || static::folderExists($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors) || static::folderExists($path, false, $suppressErrors))
 		{
 			$success = $suppressErrors ? @chown($path, $owner) : chown($path, $owner);
 
-			if ($success && static::folderExists($path, $suppressErrors) && $recursive)
+			if ($success && static::folderExists($path, false, $suppressErrors) && $recursive)
 			{
 				$contents = static::getFolderContents($path, true, null, false, $suppressErrors);
 
-				foreach ($contents as $path)
+				if ($contents)
 				{
-					$path = static::normalizePathSeparators($path);
-
-					if ($suppressErrors ? !@chown($path, $owner) : chown($path, $owner))
+					foreach ($contents as $path)
 					{
-						$success = false;
+						$path = static::normalizePathSeparators($path);
+
+						if ($suppressErrors ? !@chown($path, $owner) : chown($path, $owner))
+						{
+							$success = false;
+						}
 					}
 				}
 			}
@@ -965,21 +997,24 @@ class IOHelper
 			return false;
 		}
 
-		if (static::fileExists($path, $suppressErrors) || static::folderExists($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors) || static::folderExists($path, false, $suppressErrors))
 		{
 			$success = $suppressErrors ? @chgrp($path, $group) : chgrp($path, $group);
 
-			if ($success && static::folderExists($path, $suppressErrors) && $recursive)
+			if ($success && static::folderExists($path, false, $suppressErrors) && $recursive)
 			{
 				$contents = static::getFolderContents($path, true, null, false, $suppressErrors);
 
-				foreach ($contents as $path)
+				if ($contents)
 				{
-					$path = static::normalizePathSeparators($path);
-
-					if ($suppressErrors ? !@chgrp($path, $group) : chgrp($path, $group))
+					foreach ($contents as $path)
 					{
-						$success = false;
+						$path = static::normalizePathSeparators($path);
+
+						if ($suppressErrors ? !@chgrp($path, $group) : chgrp($path, $group))
+						{
+							$success = false;
+						}
 					}
 				}
 			}
@@ -1013,7 +1048,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::fileExists($path, $suppressErrors) || static::folderExists($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors) || static::folderExists($path, false, $suppressErrors))
 		{
 			if ($suppressErrors ? @chmod($path, $permissions) : chmod($path, $permissions))
 			{
@@ -1044,11 +1079,11 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::fileExists($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors))
 		{
 			$destFolder = static::getFolderName($destination, true, $suppressErrors);
 
-			if (!static::folderExists($destFolder, $suppressErrors))
+			if (!static::folderExists($destFolder, false, $suppressErrors))
 			{
 				static::createFolder($destFolder, craft()->config->get('defaultFolderPermissions'), $suppressErrors);
 			}
@@ -1090,34 +1125,39 @@ class IOHelper
 	public static function copyFolder($path, $destination, $validate = false, $suppressErrors = false)
 	{
 		$path = static::normalizePathSeparators($path);
+		$destination = static::normalizePathSeparators($destination);
 
-		if (static::folderExists($path, $suppressErrors))
+		if (static::folderExists($path, false, $suppressErrors))
 		{
 			$folderContents = static::getFolderContents($path, true, null, true, $suppressErrors);
 
-			foreach ($folderContents as $item)
+			if ($folderContents)
 			{
-				$itemDest = $destination.str_replace($path, '', $item);
-
-				$destFolder = static::getFolderName($itemDest, true, $suppressErrors);
-
-				if (!static::folderExists($destFolder, $suppressErrors))
+				foreach ($folderContents as $item)
 				{
-					static::createFolder($destFolder, craft()->config->get('defaultFolderPermissions'), $suppressErrors);
-				}
+					$itemDest = IOHelper::normalizePathSeparators($destination.'/'.str_replace($path, '', $item));
+					$destFolder = static::getFolderName($itemDest, true, $suppressErrors);
 
-				if (static::fileExists($item, $suppressErrors))
-				{
-					if ($suppressErrors ? !@copy($item, $itemDest) : copy($item, $itemDest))
+					if (!static::folderExists($destFolder, false, $suppressErrors))
 					{
-						Craft::log('Could not copy file from '.$item.' to '.$itemDest.'.', LogLevel::Error);
+						static::createFolder($destFolder, craft()->config->get('defaultFolderPermissions'), $suppressErrors);
 					}
-				}
-				elseif (static::folderExists($item, $suppressErrors))
-				{
-					if (!static::createFolder($itemDest, $suppressErrors))
+
+					if (static::fileExists($item, false, $suppressErrors))
 					{
-						Craft::log('Could not create destination folder '.$itemDest, LogLevel::Error);
+						$result = $suppressErrors ? @copy($item, $itemDest) : copy($item, $itemDest);
+
+						if (!$result)
+						{
+							Craft::log('Could not copy file from '.$item.' to '.$itemDest.'.', LogLevel::Error);
+						}
+					}
+					elseif (static::folderExists($item, false, $suppressErrors))
+					{
+						if (!static::createFolder($itemDest, $suppressErrors))
+						{
+							Craft::log('Could not create destination folder '.$itemDest, LogLevel::Error);
+						}
 					}
 				}
 			}
@@ -1153,10 +1193,10 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::fileExists($path, $suppressErrors) || static::folderExists($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors) || static::folderExists($path, false, $suppressErrors))
 		{
 			// If we're renaming a file and there is no extension on the new name, default to the old extension
-			if (static::fileExists($path, $suppressErrors) && !static::getExtension($newName, null, $suppressErrors))
+			if (static::fileExists($path, false, $suppressErrors) && !static::getExtension($newName, null, $suppressErrors))
 			{
 				$newName .= '.'.static::getExtension($path, null, $suppressErrors);
 			}
@@ -1211,7 +1251,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::fileExists($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors))
 		{
 			if (static::isWritable($path, $suppressErrors))
 			{
@@ -1243,7 +1283,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::folderExists($path, $suppressErrors))
+		if (static::folderExists($path, false, $suppressErrors))
 		{
 			$folderContents = static::getFolderContents($path, true, null, true, $suppressErrors);
 
@@ -1253,11 +1293,11 @@ class IOHelper
 				{
 					$item = static::normalizePathSeparators($item);
 
-					if (static::fileExists($item, $suppressErrors))
+					if (static::fileExists($item, false, $suppressErrors))
 					{
 						static::deleteFile($item, $suppressErrors);
 					}
-					elseif (static::folderExists($item, $suppressErrors))
+					elseif (static::folderExists($item, false, $suppressErrors))
 					{
 						static::deleteFolder($item, $suppressErrors);
 					}
@@ -1290,7 +1330,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::fileExists($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors))
 		{
 			if (static::isWritable($path, $suppressErrors))
 			{
@@ -1328,7 +1368,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::folderExists($path, $suppressErrors))
+		if (static::folderExists($path, false, $suppressErrors))
 		{
 			if (static::isWritable($path, $suppressErrors))
 			{
@@ -1370,7 +1410,7 @@ class IOHelper
 	{
 		$path = static::normalizePathSeparators($path);
 
-		if (static::fileExists($path, $suppressErrors) && static::isReadable($path, $suppressErrors))
+		if (static::fileExists($path, false, $suppressErrors) && static::isReadable($path, $suppressErrors))
 		{
 			return $suppressErrors ? @md5_file($path) : md5_file($path);
 		}
@@ -1426,26 +1466,30 @@ class IOHelper
 	 */
 	public static function getFileKinds()
 	{
-		return array(
-			'access'      => array('label' => Craft::t('Access'),      'extensions' => array('adp','accdb','mdb','accde','accdt','accdr')),
-			'audio'       => array('label' => Craft::t('Audio'),       'extensions' => array('3gp','aac','act','aif','aiff','aifc','alac','amr','au','dct','dss','dvf','flac','gsm','iklax','ivs','m4a','m4p','mmf','mp3','mpc','msv','oga','ogg','opus','ra','tta','vox','wav','wma','wv')),
-			'compressed'  => array('label' => Craft::t('Compressed'),  'extensions' => array('bz2', 'tar', 'gz', '7z', 's7z', 'dmg', 'rar', 'zip', 'tgz', 'zipx')),
-			'excel'       => array('label' => Craft::t('Excel'),       'extensions' => array('xls', 'xlsx','xlsm','xltx','xltm')),
-			'flash'       => array('label' => Craft::t('Flash'),       'extensions' => array('fla','flv','swf','swt','swc')),
-			'html'        => array('label' => Craft::t('HTML'),        'extensions' => array('html','htm')),
-			'illustrator' => array('label' => Craft::t('Illustrator'), 'extensions' => array('ai')),
-			'image'       => array('label' => Craft::t('Image'),       'extensions' => array('jfif','jp2','jpx','jpg','jpeg','jpe','tiff','tif','png','gif','bmp','webp','ppm','pgm','pnm','pfm','pam','svg')),
-			'javascript'  => array('label' => Craft::t('Javascript'),  'extensions' => array('js')),
-			'json'        => array('label' => Craft::t('JSON'),        'extensions' => array('json')),
-			'pdf'         => array('label' => Craft::t('PDF'),         'extensions' => array('pdf')),
-			'photoshop'   => array('label' => Craft::t('Photoshop'),   'extensions' => array('psd','psb')),
-			'php'         => array('label' => Craft::t('PHP'),         'extensions' => array('php')),
-			'powerpoint'  => array('label' => Craft::t('PowerPoint'),  'extensions' => array('pps','ppsm','ppsx','ppt','pptm','pptx','potx')),
-			'text'        => array('label' => Craft::t('Text'),        'extensions' => array('txt','text')),
-			'video'       => array('label' => Craft::t('Video'),       'extensions' => array('avchd','asf','asx','avi','flv','fla','mov','m4v','mng','mpeg','mpg','m1s','mp2v','m2v','m2s','mp4','mkv','qt','flv','mp4','ogg','ogv','rm','wmv','webm')),
-			'word'        => array('label' => Craft::t('Word'),        'extensions' => array('doc','docx','dot','docm','dotm')),
-			'xml'         => array('label' => Craft::t('XML'),         'extensions' => array('xml')),
-		);
+		self::_buildFileKinds();
+
+		return self::$_fileKinds;
+	}
+
+	/**
+	 * Returns the label of a given file kind.
+	 *
+	 * @param string $kind
+	 *
+	 * @return array
+	 */
+	public static function getFileKindLabel($kind)
+	{
+		self::_buildFileKinds();
+
+		if (isset(self::$_fileKinds[$kind]['label']))
+		{
+			return self::$_fileKinds[$kind]['label'];
+		}
+		else
+		{
+			return null;
+		}
 	}
 
 	/**
@@ -1481,7 +1525,7 @@ class IOHelper
 	 */
 	public static function ensureFolderExists($folderPath, $suppressErrors = false)
 	{
-		if (!IOHelper::folderExists($folderPath, $suppressErrors))
+		if (!IOHelper::folderExists($folderPath, false, $suppressErrors))
 		{
 			IOHelper::createFolder($folderPath, craft()->config->get('defaultFolderPermissions'), $suppressErrors);
 		}
@@ -1494,7 +1538,7 @@ class IOHelper
 	 * @param bool   $onlyAscii Whether to only allow ASCII characters in the filename.
 	 * @param string $separator The separator to use for any whitespace. Defaults to '-'.
 	 *
-	 * @return mixed
+	 * @return string The cleansed filename.
 	 */
 	public static function cleanFilename($fileName, $onlyAscii = false, $separator = '-')
 	{
@@ -1508,7 +1552,7 @@ class IOHelper
 
 		if (!is_null($separator))
 		{
-			$fileName = preg_replace('/(\s|'.preg_quote($separator).')+/', $separator, $fileName);
+			$fileName = preg_replace('/(\s|'.preg_quote($separator).')+/u', $separator, $fileName);
 		}
 
 		// Nuke any trailing or leading .-_
@@ -1517,6 +1561,27 @@ class IOHelper
 		$fileName = ($onlyAscii) ? StringHelper::asciiString($fileName) : $fileName;
 
 		return $fileName;
+	}
+
+	/**
+	 * Cleans a path.
+	 *
+	 * @param string $path      The path to clean.
+	 * @param bool   $onlyAscii Whether to only allow ASCII characters in the path.
+	 * @param string $separator The separator to use for any whitespace. Defaults to '-'.
+	 *
+	 * @return string The cleansed path.
+	 */
+	public static function cleanPath($path, $onlyAscii = false, $separator = '-')
+	{
+		$segments = explode('/', $path);
+
+		foreach ($segments as &$segment)
+		{
+			$segment = self::cleanFilename($segment, $onlyAscii, $separator);
+		}
+
+		return implode('/', $segments);
 	}
 
 	/**
@@ -1711,13 +1776,18 @@ class IOHelper
 	{
 		$size = 0;
 
-		foreach (static::getFolderContents($path, true, null, true, $suppressErrors) as $item)
-		{
-			$item = static::normalizePathSeparators($item);
+		$folderContents = static::getFolderContents($path, true, null, true, $suppressErrors);
 
-			if (static::fileExists($item, $suppressErrors))
+		if ($folderContents)
+		{
+			foreach ($folderContents as $item)
 			{
-				$size += sprintf("%u", $suppressErrors ? @filesize($item) : filesize($item));
+				$item = static::normalizePathSeparators($item);
+
+				if (static::fileExists($item, false, $suppressErrors))
+				{
+					$size += sprintf("%u", $suppressErrors ? @filesize($item) : filesize($item));
+				}
 			}
 		}
 
@@ -1770,17 +1840,17 @@ class IOHelper
 
 				if (static::_filterPassed($contents[$key], $filter))
 				{
-					if (static::fileExists($contents[$key], $suppressErrors))
+					if (static::fileExists($contents[$key], false, $suppressErrors))
 					{
 						$descendants[] = static::normalizePathSeparators($contents[$key]);
 					}
-					elseif (static::folderExists($contents[$key], $suppressErrors))
+					elseif (static::folderExists($contents[$key], false, $suppressErrors))
 					{
 						$descendants[] = static::normalizePathSeparators($contents[$key]);
 					}
 				}
 
-				if (static::folderExists($contents[$key], $suppressErrors) && $recursive)
+				if (static::folderExists($contents[$key], false, $suppressErrors) && $recursive)
 				{
 					$descendants = array_merge($descendants, static::_folderContents($contents[$key], $recursive, $filter, $includeHiddenFiles, $suppressErrors));
 				}
@@ -1827,5 +1897,37 @@ class IOHelper
 		}
 
 		return $passed;
+	}
+
+	/**
+	 * Builds the internal file kinds array, if it hasn't been built already.
+	 *
+	 * @return void
+	 */
+	private static function _buildFileKinds()
+	{
+		if (!isset(self::$_fileKinds))
+		{
+			self::$_fileKinds = array(
+				'access'      => array('label' => Craft::t('Access'),      'extensions' => array('adp','accdb','mdb','accde','accdt','accdr')),
+				'audio'       => array('label' => Craft::t('Audio'),       'extensions' => array('3gp','aac','act','aif','aiff','aifc','alac','amr','au','dct','dss','dvf','flac','gsm','iklax','ivs','m4a','m4p','mmf','mp3','mpc','msv','oga','ogg','opus','ra','tta','vox','wav','wma','wv')),
+				'compressed'  => array('label' => Craft::t('Compressed'),  'extensions' => array('bz2', 'tar', 'gz', '7z', 's7z', 'dmg', 'rar', 'zip', 'tgz', 'zipx')),
+				'excel'       => array('label' => Craft::t('Excel'),       'extensions' => array('xls', 'xlsx','xlsm','xltx','xltm')),
+				'flash'       => array('label' => Craft::t('Flash'),       'extensions' => array('fla','flv','swf','swt','swc')),
+				'html'        => array('label' => Craft::t('HTML'),        'extensions' => array('html','htm')),
+				'illustrator' => array('label' => Craft::t('Illustrator'), 'extensions' => array('ai')),
+				'image'       => array('label' => Craft::t('Image'),       'extensions' => array('jfif','jp2','jpx','jpg','jpeg','jpe','tiff','tif','png','gif','bmp','webp','ppm','pgm','pnm','pfm','pam','svg')),
+				'javascript'  => array('label' => Craft::t('Javascript'),  'extensions' => array('js')),
+				'json'        => array('label' => Craft::t('JSON'),        'extensions' => array('json')),
+				'pdf'         => array('label' => Craft::t('PDF'),         'extensions' => array('pdf')),
+				'photoshop'   => array('label' => Craft::t('Photoshop'),   'extensions' => array('psd','psb')),
+				'php'         => array('label' => Craft::t('PHP'),         'extensions' => array('php')),
+				'powerpoint'  => array('label' => Craft::t('PowerPoint'),  'extensions' => array('pps','ppsm','ppsx','ppt','pptm','pptx','potx')),
+				'text'        => array('label' => Craft::t('Text'),        'extensions' => array('txt','text')),
+				'video'       => array('label' => Craft::t('Video'),       'extensions' => array('avchd','asf','asx','avi','flv','fla','mov','m4v','mng','mpeg','mpg','m1s','mp2v','m2v','m2s','mp4','mkv','qt','flv','mp4','ogg','ogv','rm','wmv','webm','vob')),
+				'word'        => array('label' => Craft::t('Word'),        'extensions' => array('doc','docx','dot','docm','dotm')),
+				'xml'         => array('label' => Craft::t('XML'),         'extensions' => array('xml')),
+			);
+		}
 	}
 }

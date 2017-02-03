@@ -6,8 +6,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.helpers
  * @since     2.0
  */
@@ -257,5 +257,37 @@ class ElementHelper
 		}
 
 		return $localeIds;
+	}
+
+	/**
+	 * Given an array of elements, will go through and set the appropriate "next"
+	 * and "prev" elements on them.
+	 *
+	 * @param BaseElementModel[] $elements The array of elements.
+	 */
+	public static function setNextPrevOnElements($elements)
+	{
+		/** @var BaseElementModel $lastElement */
+		$lastElement = null;
+
+		foreach ($elements as $i => $element)
+		{
+			if ($lastElement)
+			{
+				$lastElement->setNext($element);
+				$element->setPrev($lastElement);
+			}
+			else
+			{
+				$element->setPrev(false);
+			}
+
+			$lastElement = $element;
+		}
+
+		if ($lastElement)
+		{
+			$lastElement->setNext(false);
+		}
 	}
 }

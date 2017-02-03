@@ -1,11 +1,3 @@
-/**
- * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
- * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
- * @package   craft.app.resources
- */
-
 (function($) {
 
 
@@ -131,10 +123,10 @@ Craft.QuickPostWidget = Garnish.Base.extend(
 				if (!widget.params.sectionId || widget.params.sectionId == this.params.sectionId)
 				{
 					widget.addEntry({
-						url:      response.cpEditUrl,
-						title:    response.title,
-						postDate: response.postDate,
-						username: response.author.username
+						url:         response.cpEditUrl,
+						title:       response.title,
+						dateCreated: response.dateCreated,
+						username:    response.authorUsername
 					});
 				}
 			}

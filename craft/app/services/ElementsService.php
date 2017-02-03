@@ -8,8 +8,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.services
  * @since     1.0
  */
@@ -22,6 +22,11 @@ class ElementsService extends BaseApplicationComponent
 	 * @var array
 	 */
 	private $_placeholderElements;
+
+	/**
+	 * @var array
+	 */
+	private $_searchResults;
 
 	// Public Methods
 	// =========================================================================
@@ -64,7 +69,7 @@ class ElementsService extends BaseApplicationComponent
 	 * If no element type is provided, the method will first have to run a DB query to determine what type of element
 	 * the $elementId is, so you should definitely pass it if it’s known.
 	 *
-	 * The element’s status will not be a factor when usisng this method.
+	 * The element’s status will not be a factor when using this method.
 	 *
 	 * @param int    $elementId   The element’s ID.
 	 * @param null   $elementType The element type’s class handle.
@@ -197,167 +202,318 @@ class ElementsService extends BaseApplicationComponent
 	 */
 	public function findElements($criteria = null, $justIds = false)
 	{
-		$elements = array();
-		$query = $this->buildElementsQuery($criteria, $contentTable, $fieldColumns);
+		// Create an element query based on this criteria
+		$query = $this->buildElementsQuery($criteria, $contentTable, $fieldColumns, $justIds);
 
-		if ($query)
+		if (!$query)
 		{
-			if ($justIds)
+			// Something decided that executing the query is pointless
+			return array();
+		}
+
+		if ($justIds)
+		{
+			return $query->queryColumn();
+		}
+
+		$results = $query->queryAll();
+
+		if (!$results)
+		{
+			return array();
+		}
+
+		return $this->populateElements($results, $criteria, $contentTable, $fieldColumns);
+	}
+
+	/**
+	 * Populates element models from a given element query's result set.
+	 *
+	 * @param array                $results      The result set of an element query
+	 * @param ElementCriteriaModel $criteria     The element criteria model
+	 * @param string               $contentTable The content table that was joined in by buildElementsQuery()
+	 * @param array                $fieldColumns Info about the content field columns being selected
+	 *
+	 * @return BaseElementModel[] The populated element models.
+	 */
+	public function populateElements($results, ElementCriteriaModel $criteria, $contentTable, $fieldColumns)
+	{
+		$elements = array();
+
+		$locale = $criteria->locale;
+		$elementType = $criteria->getElementType();
+		$indexBy = $criteria->indexBy;
+
+		foreach ($results as $result)
+		{
+			// Do we have a placeholder for this element?
+			if (isset($this->_placeholderElements[$result['id']][$locale]))
 			{
-				$query->select('elements.id');
+				$element = $this->_placeholderElements[$result['id']][$locale];
 			}
-
-			if ($criteria->fixedOrder)
+			else
 			{
-				$ids = ArrayHelper::stringToArray($criteria->id);
+				// Make a copy to pass to the onPopulateElement event
+				$originalResult = array_merge($result);
 
-				if (!$ids)
+				if ($contentTable)
 				{
-					return array();
-				}
+					// Separate the content values from the main element attributes
+					$content = array(
+						'id'        => (isset($result['contentId']) ? $result['contentId'] : null),
+						'elementId' => $result['id'],
+						'locale'    => $locale,
+						'title'     => (isset($result['title']) ? $result['title'] : null)
+					);
 
-				$query->order(craft()->db->getSchema()->orderByColumnValues('elements.id', $ids));
-			}
-			else if ($criteria->order && $criteria->order != 'score')
-			{
-				$order = $criteria->order;
+					unset($result['title']);
 
-				if (is_array($fieldColumns))
-				{
-					// Add the field column prefixes
-					foreach ($fieldColumns as $column)
+					if ($fieldColumns)
 					{
-						// Avoid matching fields named "asc" or "desc" in the string "column_name asc" or
-						// "column_name desc"
-						$order = preg_replace('/(?<!\s)\b'.$column['handle'].'\b/', $column['column'].'$1', $order);
+						foreach ($fieldColumns as $column)
+						{
+							// Account for results where multiple fields have the same handle, but from
+							// different columns e.g. two Matrix block types that each have a field with the
+							// same handle
+
+							$colName = $column['column'];
+							$fieldHandle = $column['handle'];
+
+							if (!isset($content[$fieldHandle]) || (empty($content[$fieldHandle]) && !empty($result[$colName])))
+							{
+								$content[$fieldHandle] = $result[$colName];
+							}
+
+							unset($result[$colName]);
+						}
 					}
 				}
 
-				$query->order($order);
-			}
+				$result['locale'] = $locale;
 
-			if ($criteria->offset)
-			{
-				$query->offset($criteria->offset);
-			}
-
-			if ($criteria->limit)
-			{
-				$query->limit($criteria->limit);
-			}
-
-			$results = $query->queryAll();
-
-			if ($results)
-			{
-				if ($justIds)
+				// Should we set a search score on the element?
+				if (isset($this->_searchResults[$result['id']]))
 				{
-					foreach ($results as $result)
-					{
-						$elements[] = $result['id'];
-					}
+					$result['searchScore'] = $this->_searchResults[$result['id']];
 				}
-				else
+
+				$element = $elementType->populateElementModel($result);
+
+				// Was an element returned?
+				if (!$element || !($element instanceof BaseElementModel))
 				{
-					$locale = $criteria->locale;
-					$elementType = $criteria->getElementType();
-					$indexBy = $criteria->indexBy;
-					$lastElement = null;
-
-					foreach ($results as $result)
-					{
-						// Do we have a placeholder for this elmeent?
-						if (isset($this->_placeholderElements[$result['id']][$locale]))
-						{
-							$element = $this->_placeholderElements[$result['id']][$locale];
-						}
-						else
-						{
-							// Make a copy to pass to the onPopulateElement event
-							$originalResult = array_merge($result);
-
-							if ($contentTable)
-							{
-								// Separate the content values from the main element attributes
-								$content = array(
-									'id'        => (isset($result['contentId']) ? $result['contentId'] : null),
-									'elementId' => $result['id'],
-									'locale'    => $locale,
-									'title'     => (isset($result['title']) ? $result['title'] : null)
-								);
-
-								unset($result['title']);
-
-								if ($fieldColumns)
-								{
-									foreach ($fieldColumns as $column)
-									{
-										// Account for results where multiple fields have the same handle, but from
-										// different columns e.g. two Matrix block types that each have a field with the
-										// same handle
-
-										$colName = $column['column'];
-										$fieldHandle = $column['handle'];
-
-										if (!isset($content[$fieldHandle]) || (empty($content[$fieldHandle]) && !empty($result[$colName])))
-										{
-											$content[$fieldHandle] = $result[$colName];
-										}
-
-										unset($result[$colName]);
-									}
-								}
-							}
-
-							$result['locale'] = $locale;
-							$element = $elementType->populateElementModel($result);
-
-							// Was an element returned?
-							if (!$element || !($element instanceof BaseElementModel))
-							{
-								continue;
-							}
-
-							if ($contentTable)
-							{
-								$element->setContent($content);
-							}
-
-							// Fire an 'onPopulateElement' event
-							$this->onPopulateElement(new Event($this, array(
-								'element' => $element,
-								'result'  => $originalResult
-							)));
-						}
-
-						if ($indexBy)
-						{
-							$elements[$element->$indexBy] = $element;
-						}
-						else
-						{
-							$elements[] = $element;
-						}
-
-						if ($lastElement)
-						{
-							$lastElement->setNext($element);
-							$element->setPrev($lastElement);
-						}
-						else
-						{
-							$element->setPrev(false);
-						}
-
-						$lastElement = $element;
-					}
-
-					$lastElement->setNext(false);
+					continue;
 				}
+
+				if ($contentTable)
+				{
+					$element->setContent($content);
+				}
+
+				// Fire an 'onPopulateElement' event
+				$this->onPopulateElement(new Event($this, array(
+					'element' => $element,
+					'result'  => $originalResult
+				)));
+			}
+
+			if ($indexBy)
+			{
+				// Cast to a string in the case of SingleOptionFieldData, so its
+				// __toString() method gets invoked.
+				$elements[(string)$element->$indexBy] = $element;
+			}
+			else
+			{
+				$elements[] = $element;
 			}
 		}
 
+		ElementHelper::setNextPrevOnElements($elements);
+
+		// Should we eager-load some elements onto these?
+		if ($criteria->with)
+		{
+			$this->eagerLoadElements($elementType, $elements, $criteria->with);
+		}
+
+		// Fire an 'onPopulateElements' event
+		$this->onPopulateElements(new Event($this, array(
+			'elements' => $elements,
+			'criteria' => $criteria
+		)));
+
+		// Fire the criteria's 'onPopulateElements' event
+		$criteria->onPopulateElements(new Event($criteria, array(
+			'elements' => $elements
+		)));
+
 		return $elements;
+	}
+
+	/**
+	 * Eager-loads additional elements onto a given set of elements.
+	 *
+	 * @param BaseElementType    $elementType The root element type
+	 * @param BaseElementModel[] $elements    The root element models that should be updated with the eager-loaded elements
+	 * @param string|array       $with        Dot-delimited paths of the elements that should be eager-loaded into the root elements
+	 *
+	 * @return void
+	 */
+	public function eagerLoadElements(BaseElementType $elementType, $elements, $with)
+	{
+		// Bail if there aren't even any elements
+		if (!$elements)
+		{
+			return;
+		}
+
+		// Normalize the paths and find any custom path criterias
+		$with = ArrayHelper::stringToArray($with);
+		$paths = array();
+		$pathCriterias = array();
+
+		foreach ($with as $path)
+		{
+			// Using the array syntax?
+			// ['foo.bar'] or ['foo.bar', criteria]
+			if (is_array($path))
+			{
+				if (!empty($path[1]))
+				{
+					$pathCriterias['__root__.'.$path[0]] = $path[1];
+				}
+
+				$paths[] = $path[0];
+			}
+			else
+			{
+				$paths[] = $path;
+			}
+		}
+
+		// Load 'em up!
+		$elementsByPath = array('__root__' => $elements);
+		$elementTypesByPath = array('__root__' => $elementType->getClassHandle());
+
+		foreach ($paths as $path)
+		{
+			$pathSegments = explode('.', $path);
+			$sourcePath = '__root__';
+
+			foreach ($pathSegments as $segment)
+			{
+				$targetPath = $sourcePath.'.'.$segment;
+
+				// Figure out the path mapping wants a custom order
+				$useCustomOrder = !empty($pathCriterias[$targetPath]['order']);
+
+				// Make sure we haven't already eager-loaded this target path
+				if (!isset($elementsByPath[$targetPath]))
+				{
+					// Guilty until proven innocent
+					$elementsByPath[$targetPath] = $targetElements = $targetElementsById = $targetElementIdsBySourceIds = false;
+
+					// Get the eager-loading map from the source element type
+					$sourceElementType = $this->getElementType($elementTypesByPath[$sourcePath]);
+					$map = $sourceElementType->getEagerLoadingMap($elementsByPath[$sourcePath], $segment);
+
+					if ($map && !empty($map['map']))
+					{
+						// Remember the element type in case there are more segments after this
+						$elementTypesByPath[$targetPath] = $map['elementType'];
+
+						// Loop through the map to find:
+						// - unique target element IDs
+						// - target element IDs indexed by source element IDs
+						$uniqueTargetElementIds = array();
+						$targetElementIdsBySourceIds = array();
+
+						foreach ($map['map'] as $mapping)
+						{
+							if (!in_array($mapping['target'], $uniqueTargetElementIds))
+							{
+								$uniqueTargetElementIds[] = $mapping['target'];
+							}
+
+							$targetElementIdsBySourceIds[$mapping['source']][] = $mapping['target'];
+						}
+
+						// Get the target elements
+						$customParams = array_merge(
+							// Default to no order and limit, but allow the element type/path criteria to override
+							array('order' => null, 'limit' => null),
+							(isset($map['criteria']) ? $map['criteria'] : array()),
+							(isset($pathCriterias[$targetPath]) ? $pathCriterias[$targetPath] : array())
+						);
+						$criteria = $this->getCriteria($map['elementType'], $customParams);
+						$criteria->id = $uniqueTargetElementIds;
+						$targetElements = $this->findElements($criteria);
+
+						if ($targetElements)
+						{
+							// Success! Store those elements on $elementsByPath FFR
+							$elementsByPath[$targetPath] = $targetElements;
+
+							// Index the target elements by their IDs if we are using the map-defined order
+							if (!$useCustomOrder)
+							{
+								$targetElementsById = array();
+
+								foreach ($targetElements as $targetElement)
+								{
+									$targetElementsById[$targetElement->id] = $targetElement;
+								}
+							}
+						}
+					}
+
+					// Tell the source elements about their eager-loaded elements (or lack thereof, as the case may be)
+					foreach ($elementsByPath[$sourcePath] as $sourceElement)
+					{
+						$sourceElementId = $sourceElement->id;
+						$targetElementsForSource = array();
+
+						if (isset($targetElementIdsBySourceIds[$sourceElementId]))
+						{
+							if ($useCustomOrder)
+							{
+								// Assign the elements in the order they were returned from the query
+								foreach ($targetElements as $targetElement)
+								{
+									if (in_array($targetElement->id, $targetElementIdsBySourceIds[$sourceElementId]))
+									{
+										$targetElementsForSource[] = $targetElement;
+									}
+								}
+							}
+							else
+							{
+								// Assign the elements in the order defined by the map
+								foreach ($targetElementIdsBySourceIds[$sourceElementId] as $targetElementId)
+								{
+									if (isset($targetElementsById[$targetElementId]))
+									{
+										$targetElementsForSource[] = $targetElementsById[$targetElementId];
+									}
+								}
+							}
+						}
+
+						$sourceElement->setEagerLoadedElements($segment, $targetElementsForSource);
+					}
+				}
+
+				if (!$elementsByPath[$targetPath])
+				{
+					// Dead end - stop wasting time on this path
+					break;
+				}
+
+				// Update the source path
+				$sourcePath = $targetPath;
+			}
+		}
 	}
 
 	/**
@@ -370,18 +526,49 @@ class ElementsService extends BaseApplicationComponent
 	 */
 	public function getTotalElements($criteria = null)
 	{
-		$query = $this->buildElementsQuery($criteria);
+		// TODO: Lots in here MySQL specific.
+		$query = $this->buildElementsQuery($criteria, $contentTable, $fieldColumns, true);
 
 		if ($query)
 		{
-			$elementIds = $this->_getElementIdsFromQuery($query);
+			$query
+				->order('')
+				->offset(0)
+				->limit(-1)
+				->from('elements elements');
 
-			if ($criteria->search)
+			$elementsIdColumn = 'elements.id';
+			$elementsIdColumnAlias = 'elementsId';
+			$selectedColumns = $query->getSelect();
+
+			// Normalize with no quotes. setSelect later will properly add them back in.
+			$selectedColumns = str_replace('`', '', $selectedColumns);
+
+			// Guarantee we select an elements.id column
+			if (strpos($selectedColumns, $elementsIdColumn) === false)
 			{
-				$elementIds = craft()->search->filterElementIdsByQuery($elementIds, $criteria->search, false);
+				$selectedColumns = $elementsIdColumn.', '.$selectedColumns;
 			}
 
-			return count($elementIds);
+			// Replace all instances of elements.id with elementsId
+			$selectedColumns = str_replace($elementsIdColumn, $elementsIdColumnAlias, $selectedColumns);
+
+			// Find the position of the first occurrence of elementsId
+			$pos = strpos($selectedColumns, $elementsIdColumnAlias);
+
+			// Make the first occurrence of elementsId an alias for elements.id
+			if ($pos !== false)
+			{
+				$selectedColumns = substr_replace($selectedColumns, $elementsIdColumn.' AS '.$elementsIdColumnAlias, $pos, strlen($elementsIdColumnAlias));
+			}
+
+			$query->setSelect($selectedColumns);
+			$masterQuery = craft()->db->createCommand();
+			$masterQuery->params = $query->params;
+			$masterQuery->from(sprintf('(%s) derivedElementsTable', $query->getText()));
+			$count = $masterQuery->count('derivedElementsTable.'.$elementsIdColumnAlias);
+
+			return $count;
 		}
 		else
 		{
@@ -401,11 +588,13 @@ class ElementsService extends BaseApplicationComponent
 	 *                                            will actually get defined by buildElementsQuery(), and is passed by
 	 *                                            reference so whatever’s calling the method will have access to its
 	 *                                            value.)
+	 * @param bool                 $justIds       Whether the method should only return an array of the IDs of the
+	 *                                            matched elements. Defaults to `false`.
 	 *
 	 * @return DbCommand|false The DbCommand object, or `false` if the method was able to determine ahead of time that
 	 *                         there’s no chance any elements are going to be found with the given parameters.
 	 */
-	public function buildElementsQuery(&$criteria = null, &$contentTable = null, &$fieldColumns = null)
+	public function buildElementsQuery(&$criteria = null, &$contentTable = null, &$fieldColumns = null, $justIds = false)
 	{
 		if (!($criteria instanceof ElementCriteriaModel))
 		{
@@ -428,8 +617,34 @@ class ElementsService extends BaseApplicationComponent
 		// Set up the query
 		// ---------------------------------------------------------------------
 
-		$query = craft()->db->createCommand()
-			->select('elements.id, elements.type, elements.enabled, elements.archived, elements.dateCreated, elements.dateUpdated, elements_i18n.slug, elements_i18n.uri, elements_i18n.enabled AS localeEnabled')
+		// Create the DbCommand object
+		$query = craft()->db->createCommand();
+
+		// Fire an 'onBeforeBuildElementsQuery' event
+		$event = new Event($this, array(
+			'criteria' => $criteria,
+			'justIds' => $justIds,
+			'query' => $query
+		));
+
+		$this->onBeforeBuildElementsQuery($event);
+
+		// Did any of the event handlers object to this query?
+		if (!$event->performAction)
+		{
+			return false;
+		}
+
+		if ($justIds)
+		{
+			$query->select('elements.id');
+		}
+		else
+		{
+			$query->select('elements.id, elements.type, elements.enabled, elements.archived, elements.dateCreated, elements.dateUpdated, elements_i18n.slug, elements_i18n.uri, elements_i18n.enabled AS localeEnabled');
+		}
+
+		$query
 			->from('elements elements')
 			->join('elements_i18n elements_i18n', 'elements_i18n.elementId = elements.id')
 			->where('elements_i18n.locale = :locale', array(':locale' => $criteria->locale))
@@ -456,7 +671,11 @@ class ElementsService extends BaseApplicationComponent
 					$contentCols .= ', content.'.$column['column'];
 				}
 
-				$query->addSelect($contentCols);
+				if (!$justIds)
+				{
+					$query->addSelect($contentCols);
+				}
+
 				$query->join($contentTable.' content', 'content.elementId = elements.id');
 				$query->andWhere('content.locale = :locale');
 			}
@@ -574,8 +793,8 @@ class ElementsService extends BaseApplicationComponent
 		// ---------------------------------------------------------------------
 
 		// Convert the old childOf and parentOf params to the relatedTo param
-		// childOf(element)  => relatedTo({ source: element })
-		// parentOf(element) => relatedTo({ target: element })
+		// childOf(element)  => relatedTo({ sourceElement: element })
+		// parentOf(element) => relatedTo({ targetElement: element })
 		if (!$criteria->relatedTo && ($criteria->childOf || $criteria->parentOf))
 		{
 			$relatedTo = array('and');
@@ -591,6 +810,7 @@ class ElementsService extends BaseApplicationComponent
 			}
 
 			$criteria->relatedTo = $relatedTo;
+            craft()->deprecator->log('element_old_relation_params', 'The ‘childOf’, ‘childField’, ‘parentOf’, and ‘parentField’ element params have been deprecated. Use ‘relatedTo’ instead.');
 		}
 
 		if ($criteria->relatedTo)
@@ -607,7 +827,7 @@ class ElementsService extends BaseApplicationComponent
 
 			// If there's only one relation criteria and it's specifically for grabbing target elements, allow the query
 			// to order by the relation sort order
-			if ($relationParamParser->isRelationFieldQuery())
+			if (!$justIds && $relationParamParser->isRelationFieldQuery())
 			{
 				$query->addSelect('sources1.sortOrder');
 			}
@@ -674,7 +894,10 @@ class ElementsService extends BaseApplicationComponent
 
 		if ($query->isJoined('structureelements'))
 		{
-			$query->addSelect('structureelements.root, structureelements.lft, structureelements.rgt, structureelements.level');
+			if (!$justIds)
+			{
+				$query->addSelect('structureelements.root, structureelements.lft, structureelements.rgt, structureelements.level');
+			}
 
 			if ($criteria->ancestorOf)
 			{
@@ -912,37 +1135,108 @@ class ElementsService extends BaseApplicationComponent
 				}
 			}
 
-			if ($criteria->level || $criteria->depth)
+            if (!$criteria->level && $criteria->depth)
+            {
+                $criteria->level = $criteria->depth;
+                $criteria->depth = null;
+                craft()->deprecator->log('element_depth_param', 'The ‘depth’ element param has been deprecated. Use ‘level’ instead.');
+            }
+
+			if ($criteria->level)
 			{
-				// TODO: 'depth' is deprecated; use 'level' instead.
-				$level = ($criteria->level ? $criteria->level : $criteria->depth);
-				$query->andWhere(DbHelper::parseParam('structureelements.level', $level, $query->params));
+				$query->andWhere(DbHelper::parseParam('structureelements.level', $criteria->level, $query->params));
 			}
 		}
 
 		// Search
 		// ---------------------------------------------------------------------
 
+		$this->_searchResults = null;
+
 		if ($criteria->search)
 		{
 			$elementIds = $this->_getElementIdsFromQuery($query);
-			$scoredSearchResults = ($criteria->order == 'score');
-			$filteredElementIds = craft()->search->filterElementIdsByQuery($elementIds, $criteria->search, $scoredSearchResults);
+			$searchResults = craft()->search->filterElementIdsByQuery($elementIds, $criteria->search, true, $criteria->locale, true);
 
 			// No results?
-			if (!$filteredElementIds)
+			if (!$searchResults)
 			{
-				return array();
+				return false;
 			}
 
-			$query->andWhere(array('in', 'elements.id', $filteredElementIds));
+			$filteredElementIds = array_keys($searchResults);
 
-			if ($scoredSearchResults)
+			if ($criteria->order == 'score')
 			{
 				// Order the elements in the exact order that SearchService returned them in
 				$query->order(craft()->db->getSchema()->orderByColumnValues('elements.id', $filteredElementIds));
 			}
+
+			$query->andWhere(array('in', 'elements.id', $filteredElementIds));
+
+			$this->_searchResults = $searchResults;
 		}
+
+		// Order
+		// ---------------------------------------------------------------------
+
+		if ($criteria->fixedOrder)
+		{
+			$ids = ArrayHelper::stringToArray($criteria->id);
+
+			if (!$ids)
+			{
+				return array();
+			}
+
+			$query->order(craft()->db->getSchema()->orderByColumnValues('elements.id', $ids));
+		}
+		else if ($criteria->order && $criteria->order != 'score')
+		{
+			$order = $criteria->order;
+			$orderColumnMap = array();
+
+			if (is_array($fieldColumns))
+			{
+				// Add the field column prefixes
+				foreach ($fieldColumns as $column)
+				{
+					$orderColumnMap[$column['handle']] = $column['column'];
+				}
+			}
+
+			// Prevent “1052 Column 'id' in order clause is ambiguous” MySQL error
+			$orderColumnMap['id'] = 'elements.id';
+
+			foreach ($orderColumnMap as $orderValue => $columnName)
+			{
+				// Avoid matching fields named "asc" or "desc" in the string "column_name asc" or
+				// "column_name desc"
+				$order = preg_replace('/(?<!\w\s|\.)\b'.$orderValue.'\b/', $columnName.'$1', $order);
+			}
+
+			$query->order($order);
+		}
+
+		// Offset and Limit
+		// ---------------------------------------------------------------------
+
+		if ($criteria->offset)
+		{
+			$query->offset($criteria->offset);
+		}
+
+		if ($criteria->limit)
+		{
+			$query->limit($criteria->limit);
+		}
+
+		// Fire an 'onBuildElementsQuery' event
+		$this->onBuildElementsQuery(new Event($this, array(
+			'criteria' => $criteria,
+			'justIds' => $justIds,
+			'query' => $query
+		)));
 
 		return $query;
 	}
@@ -1101,6 +1395,10 @@ class ElementsService extends BaseApplicationComponent
 
 				if ($success)
 				{
+					// Save the new dateCreated and dateUpdated dates on the model
+					$element->dateCreated = new DateTime('@'.$elementRecord->dateCreated->getTimestamp());
+					$element->dateUpdated = new DateTime('@'.$elementRecord->dateUpdated->getTimestamp());
+
 					if ($isNewElement)
 					{
 						// Save the element id on the element model, in case {id} is in the URL format
@@ -1247,6 +1545,12 @@ class ElementsService extends BaseApplicationComponent
 							// Don't bother with any of the other locales
 							$success = false;
 							break;
+						}
+
+						// Go ahead and re-do search index keywords to grab things like "title" in multi-locale installs.
+						if ($isNewElement)
+						{
+							craft()->search->indexElementAttributes($localizedElement);
 						}
 
 						ElementHelper::setUniqueUri($localizedElement);
@@ -1786,7 +2090,7 @@ class ElementsService extends BaseApplicationComponent
 	 *
 	 * @param string $class The element action class handle.
 	 *
-	 * @return IElementType|null The element action, or `null`.
+	 * @return IElementAction|null The element action, or `null`.
 	 */
 	public function getAction($class)
 	{
@@ -1797,7 +2101,7 @@ class ElementsService extends BaseApplicationComponent
 	// -------------------------------------------------------------------------
 
 	/**
-	 * Parses a string for element [reference tags](http://buildwithcraft.com/docs/reference-tags).
+	 * Parses a string for element [reference tags](http://craftcms.com/docs/reference-tags).
 	 *
 	 * @param string $str The string to parse.
 	 *
@@ -1814,7 +2118,17 @@ class ElementsService extends BaseApplicationComponent
 			{
 				global $refTagsByElementType;
 
-				$elementTypeHandle = ucfirst($matches[1]);
+				if (strpos($matches[1], '_') === false)
+				{
+					$elementTypeHandle = ucfirst($matches[1]);
+				}
+				else
+				{
+					$elementTypeHandle = preg_replace_callback('/^\w|_\w/', function($matches) {
+						return strtoupper($matches[0]);
+					}, $matches[1]);
+				}
+
 				$token = '{'.StringHelper::randomString(9).'}';
 
 				$refTagsByElementType[$elementTypeHandle][] = array('token' => $token, 'matches' => $matches);
@@ -1869,6 +2183,7 @@ class ElementsService extends BaseApplicationComponent
 							{
 								$criteria = craft()->elements->getCriteria($elementTypeHandle);
 								$criteria->status = null;
+								$criteria->limit = null;
 								$criteria->$thing = array_keys($refTagsByThing);
 								$elements = $criteria->find();
 
@@ -1898,8 +2213,25 @@ class ElementsService extends BaseApplicationComponent
 										{
 											if (!empty($refTag['matches'][3]) && isset($element->{$refTag['matches'][3]}))
 											{
-												$value = (string) $element->{$refTag['matches'][3]};
-												$replace[] = $this->parseRefs($value);
+												try
+												{
+													$value = $element->{$refTag['matches'][3]};
+
+													if (is_object($value) && !method_exists($value, '__toString'))
+													{
+														throw new Exception('Object of class '.get_class($value).' could not be converted to string');
+													}
+
+													$replace[] = $this->parseRefs((string)$value);
+												}
+												catch (\Exception $e)
+												{
+													// Log it
+													Craft::log('An exception was thrown when parsing the ref tag "'.$refTag['matches'][0]."\":\n".$e->getMessage(), LogLevel::Error);
+
+													// Replace the token with the original ref tag
+													$replace[] = $refTag['matches'][0];
+												}
 											}
 											else
 											{
@@ -1952,6 +2284,30 @@ class ElementsService extends BaseApplicationComponent
 	// -------------------------------------------------------------------------
 
 	/**
+	 * Fires an 'onBeforeBuildElementsQuery' event.
+	 *
+	 * @param Event $event
+	 *
+	 * @return null
+	 */
+	public function onBeforeBuildElementsQuery(Event $event)
+	{
+		$this->raiseEvent('onBeforeBuildElementsQuery', $event);
+	}
+
+	/**
+	 * Fires an 'onBuildElementsQuery' event.
+	 *
+	 * @param Event $event
+	 *
+	 * @return null
+	 */
+	public function onBuildElementsQuery(Event $event)
+	{
+		$this->raiseEvent('onBuildElementsQuery', $event);
+	}
+
+	/**
 	 * Fires an 'onPopulateElement' event.
 	 *
 	 * @param Event $event
@@ -1961,6 +2317,18 @@ class ElementsService extends BaseApplicationComponent
 	public function onPopulateElement(Event $event)
 	{
 		$this->raiseEvent('onPopulateElement', $event);
+	}
+
+	/**
+	 * Fires an 'onPopulateElements' event.
+	 *
+	 * @param Event $event
+	 *
+	 * @return null
+	 */
+	public function onPopulateElements(Event $event)
+	{
+		$this->raiseEvent('onPopulateElements', $event);
 	}
 
 	/**
@@ -2011,6 +2379,30 @@ class ElementsService extends BaseApplicationComponent
 		$this->raiseEvent('onSaveElement', $event);
 	}
 
+	/**
+	 * Fires an 'onBeforePerformAction' event.
+	 *
+	 * @param Event $event
+	 *
+	 * @return null
+	 */
+	public function onBeforePerformAction(Event $event)
+	{
+		$this->raiseEvent('onBeforePerformAction', $event);
+	}
+
+	/**
+	 * Fires an 'onPerformAction' event.
+	 *
+	 * @param Event $event
+	 *
+	 * @return null
+	 */
+	public function onPerformAction(Event $event)
+	{
+		$this->raiseEvent('onPerformAction', $event);
+	}
+
 	// Private Methods
 	// =========================================================================
 
@@ -2026,8 +2418,7 @@ class ElementsService extends BaseApplicationComponent
 		// Get the matched element IDs, and then have the SearchService filter them.
 		$elementIdsQuery = craft()->db->createCommand()
 			->select('elements.id')
-			->from('elements elements')
-			->group('elements.id');
+			->from('elements elements');
 
 		$elementIdsQuery->setWhere($query->getWhere());
 		$elementIdsQuery->setJoin($query->getJoin());

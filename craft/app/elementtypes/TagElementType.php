@@ -6,8 +6,8 @@ namespace Craft;
  *
  * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
  * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
+ * @license   http://craftcms.com/license Craft License Agreement
+ * @see       http://craftcms.com
  * @package   craft.app.elementtypes
  * @since     1.1
  */
@@ -92,20 +92,6 @@ class TagElementType extends BaseElementType
 	}
 
 	/**
-	 * @inheritDoc IElementType::defineTableAttributes()
-	 *
-	 * @param string|null $source
-	 *
-	 * @return array
-	 */
-	public function defineTableAttributes($source = null)
-	{
-		return array(
-			'title' => Craft::t('Title'),
-		);
-	}
-
-	/**
 	 * @inheritDoc IElementType::defineCriteriaAttributes()
 	 *
 	 * @return array
@@ -142,6 +128,7 @@ class TagElementType extends BaseElementType
 
 		if ($criteria->name)
 		{
+			craft()->deprecator->log('TagElementType::modifyElementsQuery():name_param', 'The ‘name’ tag param has been deprecated. Use ‘title’ instead.');
 			$query->andWhere(DbHelper::parseParam('content.title', $criteria->name, $query->params));
 		}
 
@@ -173,7 +160,11 @@ class TagElementType extends BaseElementType
 		// Backwards compatibility with order=name (tags had names before 2.3)
 		if (is_string($criteria->order))
 		{
-			$criteria->order = preg_replace('/\bname\b/', 'title', $criteria->order);
+			$criteria->order = preg_replace('/\bname\b/', 'title', $criteria->order, -1, $count);
+
+			if ($count) {
+				craft()->deprecator->log('tag_orderby_name', 'Ordering tags by ‘name’ has been deprecated. Order by ‘title’ instead.');
+			}
 		}
 	}
 

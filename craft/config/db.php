@@ -22,10 +22,11 @@ return array(
 /**
  * The database password to connect with.
  */
-
+//DEV
+'password' => 'sR03ttg3r12:)',
 
 //PROD
-'password' => '1812war',
+//'password' => '1812war',
 
 /**
  * The name of the database to select.

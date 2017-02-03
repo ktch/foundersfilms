@@ -1,11 +1,3 @@
-/**
- * @author    Pixel & Tonic, Inc. <support@pixelandtonic.com>
- * @copyright Copyright (c) 2014, Pixel & Tonic, Inc.
- * @license   http://buildwithcraft.com/license Craft License Agreement
- * @see       http://buildwithcraft.com
- * @package   craft.app.resources
- */
-
 (function($) {
 
 
@@ -204,7 +196,7 @@ Craft.Locales = Garnish.Base.extend(
 		{
 			if (!this.$resultsSheet)
 			{
-				this.$resultsSheet = $('<div id="addlocaleresults" class="menu" style="position: relative; margin: 0 1px;"/>').appendTo(this.$addLocaleField);
+				this.$resultsSheet = $('<div id="addlocaleresults" class="menu" style="position: relative;"/>').appendTo(this.$addLocaleField);
 				this.$resultsList = $('<ul/>').appendTo(this.$resultsSheet);
 
 				this.addListener(this.$resultsList, 'mousedown', 'addSelectedLocale');
@@ -226,9 +218,11 @@ Craft.Locales = Garnish.Base.extend(
 
 	addSelectedLocale: function(ev)
 	{
+		var $activeLocale;
+
 		if (ev)
 		{
-			var $activeLocale = $(ev.target);
+			$activeLocale = $(ev.target);
 		}
 		else
 		{
@@ -237,7 +231,7 @@ Craft.Locales = Garnish.Base.extend(
 				return;
 			}
 
-			var $activeLocale = this.$activeLocale;
+			$activeLocale = this.$activeLocale;
 		}
 
 		this.hideResultsSheet();
@@ -278,7 +272,7 @@ Craft.Locales = Garnish.Base.extend(
 				}
 			}
 
-		}, this))
+		}, this));
 	}
 
 }, {
@@ -353,11 +347,11 @@ var LocalesTable = Craft.AdminTable.extend(
 
 		if (validates)
 		{
-			this.$deleteSubmitBtn.removeClass('disabled')
+			this.$deleteSubmitBtn.removeClass('disabled');
 		}
 		else
 		{
-			this.$deleteSubmitBtn.addClass('disabled')
+			this.$deleteSubmitBtn.addClass('disabled');
 		}
 
 		return validates;
