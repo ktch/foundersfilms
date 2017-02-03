@@ -23,7 +23,7 @@ return array(
  * The database password to connect with.
  */
 //DEV
-'password' => 
+// 'password' => ,
 
 //PROD
 'password' => '1812war',
